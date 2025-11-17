@@ -4,21 +4,41 @@ Enterprise-grade Retrieval-Augmented Generation (RAG) system infrastructure for 
 
 ## 🚀 Quick Start
 
+### 1. Deploy Infrastructure
+
 ```bash
-# Deploy infrastructure
 cd IaC
 ./rag_deploy
-
-# Choose your cloud provider: Azure, AWS, or GCP
-# Follow the interactive prompts
 ```
+
+Choose your cloud provider (Azure, AWS, or GCP) and follow prompts.
+
+### 2. Run the Application
+
+```bash
+./start_dev.rb
+```
+
+The browser will open automatically to http://localhost:8080!
 
 ## 📁 Project Structure
 
 ```
 UTS/
+├── start_dev.rb            # 🎯 Start both servers + open browser
+├── stop_dev.rb             # 🛑 Stop all servers
+├── app/                    # 🚀 Full-Stack RAG Application
+│   ├── backend/           # Sinatra API (port 4000)
+│   │   ├── app.rb         # Main Sinatra app
+│   │   ├── models/        # ActiveRecord models
+│   │   ├── routes/        # API routes
+│   │   └── db/            # Database & migrations
+│   └── frontend/          # React/Vite (port 8080)
+│       ├── src/           # React components
+│       └── package.json   # Node dependencies
+│
 ├── IaC/                    # Infrastructure as Code
-│   ├── rag_deploy         # 🎯 MAIN CLI - Start here!
+│   ├── rag_deploy         # 🎯 Infrastructure CLI
 │   ├── azure/             # Azure-specific infrastructure
 │   ├── aws/               # AWS-specific infrastructure
 │   ├── gcp/               # GCP-specific infrastructure

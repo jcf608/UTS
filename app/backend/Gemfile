@@ -1,0 +1,41 @@
+source 'https://rubygems.org'
+
+# No ruby version constraint - use rbenv to manage versions
+
+# Web Framework
+gem 'sinatra', '~> 4.0'
+gem 'sinatra-contrib', '~> 4.0'
+gem 'sinatra-cross_origin', '~> 0.4'
+
+# Database
+gem 'activerecord', '~> 7.1'
+gem 'sinatra-activerecord', '~> 2.0'
+gem 'pg', '~> 1.5'      # PostgreSQL
+gem 'rake', '~> 13.2'   # Database tasks
+
+# Server
+gem 'rackup', '~> 2.2'
+gem 'puma', '~> 6.4'
+gem 'rack-cors', '~> 2.0'
+
+# Environment
+gem 'dotenv', '~> 3.0'
+
+# Azure SDK
+gem 'azure-storage-blob', '~> 2.0'
+
+# OpenAI
+gem 'ruby-openai', '~> 6.3'
+
+# JSON
+gem 'oj', '~> 3.16' # Fast JSON
+
+group :development do
+  gem 'rerun', '~> 0.14'
+end
+
+group :development, :test do
+  gem 'rspec', '~> 3.12'
+  gem 'rack-test', '~> 2.1'
+  gem 'database_cleaner-active_record', '~> 2.1'
+end
