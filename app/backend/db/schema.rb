@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 1) do
+ActiveRecord::Schema[7.2].define(version: 2) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -25,5 +25,16 @@ ActiveRecord::Schema[7.2].define(version: 1) do
     t.datetime "updated_at", null: false
     t.index ["created_at"], name: "index_documents_on_created_at"
     t.index ["status"], name: "index_documents_on_status"
+  end
+
+  create_table "settings", force: :cascade do |t|
+    t.string "key", null: false
+    t.text "value"
+    t.text "description"
+    t.string "category"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["category"], name: "index_settings_on_category"
+    t.index ["key"], name: "index_settings_on_key", unique: true
   end
 end

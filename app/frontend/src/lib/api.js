@@ -22,6 +22,12 @@ const api = {
     return data
   },
 
+  // Azure budget info
+  getAzureBudget: async () => {
+    const { data } = await client.get('/api/v1/azure/budget')
+    return data
+  },
+
   // Documents with pagination
   getDocuments: async (page = 1, perPage = 20) => {
     const { data } = await client.get('/api/v1/documents', {
@@ -42,6 +48,32 @@ const api = {
   // Search
   search: async (query) => {
     const { data } = await client.post('/api/v1/search', { query })
+    return data
+  },
+
+  // Settings
+  getSettings: async () => {
+    const { data } = await client.get('/api/v1/settings')
+    return data
+  },
+
+  getSetting: async (key) => {
+    const { data } = await client.get(`/api/v1/settings/${key}`)
+    return data
+  },
+
+  updateSetting: async (key, value) => {
+    const { data } = await client.put(`/api/v1/settings/${key}`, { value })
+    return data
+  },
+
+  createSetting: async (key, value, description, category = 'general') => {
+    const { data } = await client.post('/api/v1/settings', {
+      key,
+      value,
+      description,
+      category
+    })
     return data
   },
 }

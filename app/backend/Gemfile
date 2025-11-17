@@ -26,6 +26,7 @@ gem 'azure-storage-blob', '~> 2.0'
 
 # OpenAI
 gem 'ruby-openai', '~> 6.3'
+gem 'tiktoken_ruby', '~> 0.0.7'  # Token counting
 
 # JSON
 gem 'oj', '~> 3.16' # Fast JSON

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import api from './lib/api'
 
@@ -17,6 +17,13 @@ function App() {
   const { data: stats, isLoading } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: () => api.getDashboardStats()
+  })
+
+  // Fetch Azure budget info
+  const { data: budgetInfo } = useQuery({
+    queryKey: ['azure-budget'],
+    queryFn: () => api.getAzureBudget(),
+    refetchInterval: 60000 // Refresh every minute
   })
 
   const handleSearch = async (e) => {
@@ -177,13 +184,49 @@ function App() {
             label="Documents"
             badge={stats?.total_documents}
           />
+          <MenuItem
+            active={currentPage === 'settings'}
+            onClick={() => setCurrentPage('settings')}
+            icon="⚙️"
+            label="Settings"
+          />
         </nav>
         
-        <div className="p-4 border-t border-[#3A3A3C]">
+        <div className="p-4 border-t border-[#3A3A3C] space-y-3">
           <div className="flex items-center gap-2">
             <span className={`h-2 w-2 rounded-full ${stats?.system_health === 'healthy' ? 'bg-[#5A8F7B]' : 'bg-[#B85C5C]'}`}></span>
             <span className="text-xs text-[#8E8E93]">{stats?.system_health || 'Healthy'}</span>
           </div>
+          
+          {/* Azure Budget Badge */}
+          {budgetInfo && (
+            <div className="bg-[#3A3A3C] rounded-lg p-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-[#8E8E93]">Azure Budget</span>
+                <span className="text-xs font-medium text-white">
+                  {budgetInfo.currency} {budgetInfo.remaining.toFixed(2)}
+                </span>
+              </div>
+              <div className="w-full bg-[#2C2C2E] rounded-full h-2 mb-1">
+                <div 
+                  className={`h-2 rounded-full transition-all ${
+                    budgetInfo.percentage_used > 80 ? 'bg-[#B85C5C]' :
+                    budgetInfo.percentage_used > 50 ? 'bg-[#D4A373]' :
+                    'bg-[#5A8F7B]'
+                  }`}
+                  style={{ width: `${Math.min(budgetInfo.percentage_used, 100)}%` }}
+                ></div>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-[#636366]">
+                  {budgetInfo.percentage_used}% used
+                </span>
+                <span className="text-[#636366]">
+                  of {budgetInfo.currency} {budgetInfo.budget_limit.toFixed(0)}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -198,6 +241,7 @@ function App() {
                   {currentPage === 'search' && 'Search Documents'}
                   {currentPage === 'upload' && 'Upload Documents'}
                   {currentPage === 'documents' && 'Document Library'}
+                  {currentPage === 'settings' && 'System Settings'}
                 </h2>
               </div>
               <div className="flex items-center gap-4">
@@ -235,6 +279,8 @@ function App() {
             currentPage={currentDocPage}
             onPageChange={setCurrentDocPage}
           />}
+          
+          {currentPage === 'settings' && <SettingsPage />}
         </main>
       </div>
     </div>
@@ -713,6 +759,230 @@ function StatusBadge({ status }) {
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.bg} ${config.color}`}>
       {config.label}
     </span>
+  )
+}
+
+// Settings Page Component
+function SettingsPage() {
+  const [settings, setSettings] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [saveStatus, setSaveStatus] = useState(null)
+
+  // Load settings on mount
+  const loadSettings = async () => {
+    try {
+      setLoading(true)
+      const data = await api.getSettings()
+      setSettings(data.settings)
+    } catch (error) {
+      console.error('Failed to load settings:', error)
+      setSaveStatus({ success: false, message: `Failed to load settings: ${error.message}` })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadSettings()
+  }, [])
+
+  const handleSettingChange = async (key, newValue) => {
+    try {
+      setSaving(true)
+      setSaveStatus(null)
+      
+      await api.updateSetting(key, newValue)
+      
+      // Update local state
+      setSettings(prev => ({
+        ...prev,
+        [Object.keys(prev).find(cat => prev[cat].some(s => s.key === key))]: prev[Object.keys(prev).find(cat => prev[cat].some(s => s.key === key))].map(s => 
+          s.key === key ? { ...s, value: newValue } : s
+        )
+      }))
+      
+      setSaveStatus({ success: true, message: 'Setting saved successfully!' })
+      setTimeout(() => setSaveStatus(null), 3000)
+    } catch (error) {
+      console.error('Failed to save setting:', error)
+      setSaveStatus({ success: false, message: `Failed to save: ${error.message}` })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="text-center py-12 text-[#8E8E93]">
+        Loading settings...
+      </div>
+    )
+  }
+
+  if (!settings) {
+    return (
+      <div className="text-center py-12 text-[#B85C5C]">
+        Failed to load settings
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-w-4xl space-y-6">
+      {/* Save Status */}
+      {saveStatus && (
+        <div className={`p-4 rounded-lg ${saveStatus.success ? 'bg-[#5A8F7B]/10 text-[#5A8F7B]' : 'bg-[#B85C5C]/10 text-[#B85C5C]'}`}>
+          <p className="text-sm font-medium">{saveStatus.message}</p>
+        </div>
+      )}
+
+      {/* AI Settings */}
+      {settings.ai && (
+        <div className="bg-white rounded-lg shadow-sm border-l-4 border-[#5E87B0] p-6">
+          <h3 className="text-lg font-semibold text-[#1C1C1E] mb-4 flex items-center gap-2">
+            🤖 AI Configuration
+          </h3>
+          <div className="space-y-6">
+            {settings.ai.map(setting => (
+              <SettingControl
+                key={setting.key}
+                setting={setting}
+                onChange={(value) => handleSettingChange(setting.key, value)}
+                disabled={saving}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* System Settings */}
+      {settings.system && (
+        <div className="bg-white rounded-lg shadow-sm border-l-4 border-[#8BA3B8] p-6">
+          <h3 className="text-lg font-semibold text-[#1C1C1E] mb-4 flex items-center gap-2">
+            ⚙️ System Configuration
+          </h3>
+          <div className="space-y-6">
+            {settings.system.map(setting => (
+              <SettingControl
+                key={setting.key}
+                setting={setting}
+                onChange={(value) => handleSettingChange(setting.key, value)}
+                disabled={saving}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Info Panel */}
+      <div className="bg-[#F5F5F7] rounded-lg p-6">
+        <h4 className="text-sm font-semibold text-[#3A3A3C] mb-2">ℹ️ About Token Management</h4>
+        <p className="text-sm text-[#636366] mb-3">
+          Token management helps control costs and prevent API limit errors. Settings are applied immediately.
+        </p>
+        <div className="space-y-1 text-xs text-[#8E8E93]">
+          <div>• <strong>gpt-4-turbo:</strong> 128K context, $0.01/1K input, $0.03/1K output (recommended)</div>
+          <div>• <strong>gpt-4o:</strong> 128K context, $0.005/1K input, $0.015/1K output (best value)</div>
+          <div>• <strong>gpt-4o-mini:</strong> 128K context, $0.00015/1K input, $0.0006/1K output (cheapest)</div>
+          <div>• <strong>gpt-4:</strong> 8K context, $0.03/1K input, $0.06/1K output (legacy)</div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Setting Control Component
+function SettingControl({ setting, onChange, disabled }) {
+  const [value, setValue] = useState(setting.value)
+
+  const handleChange = (newValue) => {
+    setValue(newValue)
+    onChange(newValue)
+  }
+
+  // Render different controls based on setting key
+  if (setting.key === 'openai_chat_model') {
+    return (
+      <div>
+        <label className="block text-sm font-medium text-[#1C1C1E] mb-2">
+          Chat Model
+        </label>
+        <select
+          value={value}
+          onChange={(e) => handleChange(e.target.value)}
+          disabled={disabled}
+          className="w-full px-4 py-2 border border-[#E5E5E5] rounded-lg focus:ring-2 focus:ring-[#5E87B0] focus:border-transparent outline-none disabled:bg-[#F5F5F7] disabled:cursor-not-allowed text-[#1C1C1E]"
+        >
+          <option value="gpt-4-turbo">GPT-4 Turbo (128K context) - Recommended</option>
+          <option value="gpt-4o">GPT-4o (128K context) - Best Value</option>
+          <option value="gpt-4o-mini">GPT-4o Mini (128K context) - Cheapest</option>
+          <option value="gpt-4">GPT-4 (8K context) - Legacy</option>
+        </select>
+        <p className="mt-1 text-xs text-[#8E8E93]">{setting.description}</p>
+      </div>
+    )
+  }
+
+  if (setting.key === 'log_level') {
+    return (
+      <div>
+        <label className="block text-sm font-medium text-[#1C1C1E] mb-2">
+          Log Level
+        </label>
+        <select
+          value={value}
+          onChange={(e) => handleChange(e.target.value)}
+          disabled={disabled}
+          className="w-full px-4 py-2 border border-[#E5E5E5] rounded-lg focus:ring-2 focus:ring-[#5E87B0] focus:border-transparent outline-none disabled:bg-[#F5F5F7] disabled:cursor-not-allowed text-[#1C1C1E]"
+        >
+          <option value="debug">Debug (Verbose - includes costs)</option>
+          <option value="info">Info (Normal)</option>
+          <option value="warn">Warn (Warnings only)</option>
+          <option value="error">Error (Errors only)</option>
+        </select>
+        <p className="mt-1 text-xs text-[#8E8E93]">{setting.description}</p>
+      </div>
+    )
+  }
+
+  // Number inputs for token settings
+  if (setting.key.includes('token') || setting.key.includes('budget')) {
+    return (
+      <div>
+        <label className="block text-sm font-medium text-[#1C1C1E] mb-2">
+          {setting.key.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+        </label>
+        <input
+          type="number"
+          value={value}
+          onChange={(e) => handleChange(e.target.value)}
+          disabled={disabled}
+          min="100"
+          max="100000"
+          step="100"
+          className="w-full px-4 py-2 border border-[#E5E5E5] rounded-lg focus:ring-2 focus:ring-[#5E87B0] focus:border-transparent outline-none disabled:bg-[#F5F5F7] disabled:cursor-not-allowed text-[#1C1C1E]"
+        />
+        <p className="mt-1 text-xs text-[#8E8E93]">{setting.description}</p>
+      </div>
+    )
+  }
+
+  // Default: text input
+  return (
+    <div>
+      <label className="block text-sm font-medium text-[#1C1C1E] mb-2">
+        {setting.key.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+      </label>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => handleChange(e.target.value)}
+        disabled={disabled}
+        className="w-full px-4 py-2 border border-[#E5E5E5] rounded-lg focus:ring-2 focus:ring-[#5E87B0] focus:border-transparent outline-none disabled:bg-[#F5F5F7] disabled:cursor-not-allowed text-[#1C1C1E]"
+      />
+      <p className="mt-1 text-xs text-[#8E8E93]">{setting.description}</p>
+    </div>
   )
 }
 

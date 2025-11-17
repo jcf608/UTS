@@ -81,6 +81,27 @@ module UTS
         })
       end
 
+      # Azure Budget Info
+      get '/azure/budget' do
+        begin
+          cost_service = AzureCostService.new
+          budget_info = cost_service.get_budget_info
+          json(budget_info)
+        rescue => e
+          # Return fallback data if Azure credentials are missing
+          json({
+            current_spend: 0,
+            budget_limit: 100,
+            remaining: 100,
+            percentage_used: 0,
+            period: Date.today.strftime('%B %Y'),
+            currency: 'USD',
+            last_updated: Time.now.iso8601,
+            error: e.message
+          })
+        end
+      end
+
       # Documents - with SAS URLs for download and pagination
       get '/documents' do
         storage_service = ServiceFactory.storage_service
@@ -206,6 +227,98 @@ module UTS
       rescue StandardError => e
         status 422
         json error: 'Search failed', message: e.message
+      end
+
+      # Settings Management
+      get '/settings' do
+        # Initialize defaults if settings table is empty
+        Setting.initialize_defaults if Setting.count.zero?
+
+        # Get all settings grouped by category
+        settings_by_category = Setting.all.group_by(&:category)
+
+        json({
+          success: true,
+          settings: settings_by_category.transform_values do |settings|
+            settings.map do |s|
+              {
+                key: s.key,
+                value: s.value,
+                description: s.description,
+                updated_at: s.updated_at.iso8601
+              }
+            end
+          end,
+          timestamp: Time.now.iso8601
+        })
+      end
+
+      get '/settings/:key' do
+        setting = Setting.find_by(key: params[:key])
+        halt 404, json(error: 'Setting not found') unless setting
+
+        json({
+          success: true,
+          setting: {
+            key: setting.key,
+            value: setting.value,
+            description: setting.description,
+            category: setting.category,
+            updated_at: setting.updated_at.iso8601
+          }
+        })
+      end
+
+      put '/settings/:key' do
+        body = JSON.parse(request.body.read)
+        setting = Setting.find_by(key: params[:key])
+
+        unless setting
+          halt 404, json(error: 'Setting not found')
+        end
+
+        setting.update!(value: body['value'])
+
+        json({
+          success: true,
+          setting: {
+            key: setting.key,
+            value: setting.value,
+            description: setting.description,
+            category: setting.category,
+            updated_at: setting.updated_at.iso8601
+          },
+          message: 'Setting updated successfully'
+        })
+      rescue StandardError => e
+        status 422
+        json error: 'Update failed', message: e.message
+      end
+
+      post '/settings' do
+        body = JSON.parse(request.body.read)
+
+        setting = Setting.set(
+          body['key'],
+          body['value'],
+          description: body['description'],
+          category: body['category'] || 'general'
+        )
+
+        json({
+          success: true,
+          setting: {
+            key: setting.key,
+            value: setting.value,
+            description: setting.description,
+            category: setting.category,
+            updated_at: setting.updated_at.iso8601
+          },
+          message: 'Setting created successfully'
+        })
+      rescue StandardError => e
+        status 422
+        json error: 'Creation failed', message: e.message
       end
     end
 
