@@ -69,10 +69,12 @@ _Status:_ Draft v0.1 — last updated 2025-11-17
  │   ├── migrate/
  │   ├── schema.rb
  │   └── seeds.rb
- ├── config/
+├── config/
  │   ├── database.yml
  │   ├── sidekiq.yml
  │   └── credentials templates
+├── archive/
+│   └── uts_legacy/            # Read-only snapshot or selected files from the original UTS repo
  ├── infra/
  │   ├── docker/
  │   ├── terraform/
@@ -201,11 +203,12 @@ _Status:_ Draft v0.1 — last updated 2025-11-17
 Append a new bullet each time work is performed.
 - _2025-11-17_ – Plan scaffolded; TODO list seeded. (Add a short summary when actual work begins.)
  
- ## 13. References
- - `docs/PRINCIPLES.md` — governing architectural principles (updated alongside this plan).
- - `docs/features/multi_cloud_document_processing.md` — (to be created) details provider capabilities.
- - `docs/runbooks/*` — operational procedures (pending).
- - `scripts/manual_tests/*` — manual pipelines for QA (pending).
+## 13. References
+- `archive/uts_legacy/` — curated snapshot of the UTS source repo for reference only (no direct code execution).
+- `docs/PRINCIPLES.md` — governing architectural principles (updated alongside this plan).
+- `docs/features/multi_cloud_document_processing.md` — (to be created) details provider capabilities.
+- `docs/runbooks/*` — operational procedures (pending).
+- `scripts/manual_tests/*` — manual pipelines for QA (pending).
  
  ---
  
