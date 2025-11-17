@@ -158,9 +158,17 @@ module UTS
 
         puts "📤 Uploading: #{file[:filename]} (#{content.bytesize} bytes, type: #{content_type})"
 
-        # Detect if file is an image
-        is_image = content_type.start_with?('image/') || 
-                   file[:filename] =~ /\.(png|jpg|jpeg|gif|webp|bmp|svg)$/i
+        # Only accept PNG and SVG files
+        is_png_svg = file[:filename] =~ /\.(png|svg)$/i
+        
+        unless is_png_svg
+          puts "❌ Invalid file type: #{file[:filename]}"
+          response.headers['Access-Control-Allow-Origin'] = '*'
+          halt 400, json(error: 'Only PNG and SVG files are supported', filename: file[:filename])
+        end
+
+        # Detect if file is an image (should always be true now)
+        is_image = true
 
         # For text files, clean content for PostgreSQL
         if is_image
