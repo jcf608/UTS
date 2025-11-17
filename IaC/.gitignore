@@ -1,0 +1,50 @@
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Credentials and keys
+*.pem
+*.key
+*.json
+credentials.yml
+secrets.yml
+
+# Log files
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.swp
+*~
+
+# Backup files
+*.bak
+*.backup
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-*
+
+# Ruby
+.bundle/
+vendor/bundle
+.ruby-version
+
+# Terraform (if we add it later)
+*.tfstate
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+
+# Generated files
+terraform.tfvars
+outputs.json
+deployment_summary.json
+

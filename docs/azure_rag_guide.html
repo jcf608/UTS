@@ -1,0 +1,2241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloud-Agnostic RAG System - Azure, AWS & GCP Implementation Guide</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #1C1C1E;
+            background: linear-gradient(135deg, #FAFAFA 0%, #F5F5F7 100%);
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #FFFFFF;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #5E87B0 0%, #6B9AC4 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        header p {
+            font-size: 1.2em;
+            opacity: 0.95;
+        }
+
+        nav {
+            background: #2C2C2E;
+            padding: 15px 40px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        nav ul {
+            list-style: none;
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+
+        nav a {
+            color: #8BA3B8;
+            text-decoration: none;
+            transition: color 0.3s ease;
+            font-weight: 500;
+        }
+
+        nav a:hover {
+            color: #FFFFFF;
+        }
+
+        main {
+            padding: 40px;
+        }
+
+        section {
+            margin-bottom: 50px;
+            padding: 30px;
+            border-left: 4px solid #5E87B0;
+            background: linear-gradient(135deg, #FAFAFA 0%, #F5F5F7 100%);
+            border-radius: 8px;
+        }
+
+        h2 {
+            color: #2C2C2E;
+            font-size: 2em;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #5E87B0;
+        }
+
+        h3 {
+            color: #3A3A3C;
+            font-size: 1.5em;
+            margin: 25px 0 15px 0;
+        }
+
+        h4 {
+            color: #5E87B0;
+            font-size: 1.2em;
+            margin: 20px 0 10px 0;
+        }
+
+        p {
+            margin-bottom: 15px;
+            color: #3A3A3C;
+        }
+
+        code {
+            background: #2C2C2E;
+            color: #6B9AC4;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: #2C2C2E;
+            color: #E5E5E5;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 20px 0;
+            border-left: 4px solid #5E87B0;
+        }
+
+        pre code {
+            background: none;
+            color: inherit;
+            padding: 0;
+        }
+
+        .architecture-diagram {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 2px solid #5E87B0;
+        }
+
+        .step-box {
+            background: white;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 8px;
+            border-left: 4px solid #5A8F7B;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .warning-box {
+            background: #FFF8E1;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #D4A373;
+        }
+
+        .success-box {
+            background: #E8F5E9;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #5A8F7B;
+        }
+
+        .info-box {
+            background: #E3F2FD;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #5E87B0;
+        }
+
+        ul, ol {
+            margin: 15px 0 15px 30px;
+            color: #3A3A3C;
+        }
+
+        li {
+            margin-bottom: 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #E5E5E5;
+        }
+
+        th {
+            background: #5E87B0;
+            color: white;
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background: #FAFAFA;
+        }
+
+        .button {
+            display: inline-block;
+            background: #5E87B0;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: background 0.3s ease;
+            margin: 10px 10px 10px 0;
+        }
+
+        .button:hover {
+            background: #6B9AC4;
+        }
+
+        footer {
+            background: #2C2C2E;
+            color: #8E8E93;
+            text-align: center;
+            padding: 30px;
+        }
+
+        .flow-diagram {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 30px 0;
+            flex-wrap: wrap;
+        }
+
+        .flow-step {
+            flex: 1;
+            min-width: 150px;
+            background: white;
+            padding: 20px;
+            margin: 10px;
+            border-radius: 8px;
+            text-align: center;
+            border: 2px solid #5E87B0;
+            position: relative;
+        }
+
+        .flow-arrow {
+            font-size: 2em;
+            color: #5E87B0;
+            margin: 0 10px;
+        }
+
+        @media (max-width: 768px) {
+            .flow-diagram {
+                flex-direction: column;
+            }
+            
+            .flow-arrow {
+                transform: rotate(90deg);
+            }
+
+            nav ul {
+                flex-direction: column;
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 Cloud-Agnostic RAG System</h1>
+            <p>Complete Ruby Implementation Guide for Azure, AWS & GCP</p>
+            <p style="margin-top: 10px; font-size: 0.9em;">Retrieval Augmented Generation with Custom Data Across All Major Cloud Providers</p>
+        </header>
+
+        <nav>
+            <ul>
+                <li><a href="#overview">Overview</a></li>
+                <li><a href="#providers">Cloud Providers</a></li>
+                <li><a href="#architecture">Architecture</a></li>
+                <li><a href="#setup">Setup</a></li>
+                <li><a href="#implementation">Implementation</a></li>
+                <li><a href="#examples">Code Examples</a></li>
+                <li><a href="#deployment">Deployment</a></li>
+            </ul>
+        </nav>
+
+        <main>
+            <!-- OVERVIEW SECTION -->
+            <section id="overview">
+                <h2>📋 What is RAG?</h2>
+                
+                <p><strong>Retrieval Augmented Generation (RAG)</strong> is an AI architecture that combines the power of large language models (LLMs) with your own custom data to provide accurate, contextual responses.</p>
+
+                <div class="info-box">
+                    <h4>Why RAG?</h4>
+                    <ul>
+                        <li><strong>Ground AI responses in your data:</strong> Prevent hallucinations by using real documents</li>
+                        <li><strong>Up-to-date information:</strong> LLMs have knowledge cutoffs; RAG uses current data</li>
+                        <li><strong>Domain-specific knowledge:</strong> Use proprietary documents, manuals, and databases</li>
+                        <li><strong>Cost-effective:</strong> No need to retrain models on your data</li>
+                        <li><strong>Transparent:</strong> Know which documents were used for each response</li>
+                    </ul>
+                </div>
+
+                <h3>How RAG Works</h3>
+                <div class="flow-diagram">
+                    <div class="flow-step">
+                        <strong>1. User Query</strong>
+                        <p>Ask a question</p>
+                    </div>
+                    <div class="flow-arrow">→</div>
+                    <div class="flow-step">
+                        <strong>2. Retrieve</strong>
+                        <p>Find relevant documents</p>
+                    </div>
+                    <div class="flow-arrow">→</div>
+                    <div class="flow-step">
+                        <strong>3. Augment</strong>
+                        <p>Combine query + docs</p>
+                    </div>
+                    <div class="flow-arrow">→</div>
+                    <div class="flow-step">
+                        <strong>4. Generate</strong>
+                        <p>AI creates response</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- CLOUD PROVIDERS SECTION -->
+            <section id="providers">
+                <h2>☁️ Cloud Provider Comparison</h2>
+
+                <p>This guide provides Ruby implementations for all three major cloud providers. Choose based on your organization's existing infrastructure, pricing preferences, or specific feature requirements.</p>
+
+                <h3>Service Mapping Across Providers</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Component</th>
+                            <th>Azure</th>
+                            <th>AWS</th>
+                            <th>GCP</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Object Storage</strong></td>
+                            <td>Azure Blob Storage</td>
+                            <td>Amazon S3</td>
+                            <td>Cloud Storage</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Vector Database</strong></td>
+                            <td>Azure AI Search</td>
+                            <td>Amazon OpenSearch / Kendra</td>
+                            <td>Vertex AI Vector Search</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Embeddings</strong></td>
+                            <td>Azure OpenAI (ada-002)</td>
+                            <td>Amazon Bedrock (Titan Embeddings)</td>
+                            <td>Vertex AI (textembedding-gecko)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>LLM</strong></td>
+                            <td>Azure OpenAI (GPT-4)</td>
+                            <td>Amazon Bedrock (Claude/Titan)</td>
+                            <td>Vertex AI (PaLM 2 / Gemini)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Application Hosting</strong></td>
+                            <td>Azure App Service</td>
+                            <td>AWS Lambda / Elastic Beanstalk</td>
+                            <td>Cloud Run / App Engine</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Ruby SDK</strong></td>
+                            <td>azure-storage-blob, openai</td>
+                            <td>aws-sdk-s3, aws-sdk-bedrockruntime</td>
+                            <td>google-cloud-storage, google-apis-aiplatform_v1</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Cost Comparison (Approximate)</h3>
+                <div class="info-box">
+                    <h4>💰 Monthly Costs for 1M Tokens & 100GB Storage</h4>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Provider</th>
+                                <th>Embeddings</th>
+                                <th>LLM (GPT-4 class)</th>
+                                <th>Storage</th>
+                                <th>Vector Search</th>
+                                <th>Total Est.</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Azure</strong></td>
+                                <td>~$0.10</td>
+                                <td>~$30-60</td>
+                                <td>~$2</td>
+                                <td>~$250/mo (Basic)</td>
+                                <td><strong>~$282-312</strong></td>
+                            </tr>
+                            <tr>
+                                <td><strong>AWS</strong></td>
+                                <td>~$0.10</td>
+                                <td>~$30-60</td>
+                                <td>~$2</td>
+                                <td>~$200/mo (t3.small)</td>
+                                <td><strong>~$232-262</strong></td>
+                            </tr>
+                            <tr>
+                                <td><strong>GCP</strong></td>
+                                <td>~$0.025</td>
+                                <td>~$25-50</td>
+                                <td>~$2</td>
+                                <td>~$180/mo</td>
+                                <td><strong>~$207-232</strong></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p><em>Note: Costs vary based on usage patterns, regions, and commitment discounts. Always check current pricing.</em></p>
+                </div>
+
+                <h3>Choosing a Provider</h3>
+                <div class="flow-diagram">
+                    <div class="flow-step">
+                        <strong>Azure</strong>
+                        <p>Best for Microsoft ecosystem integration</p>
+                        <ul style="text-align: left; font-size: 0.85em; margin-top: 10px;">
+                            <li>Enterprise security</li>
+                            <li>OpenAI partnership</li>
+                            <li>Hybrid cloud</li>
+                        </ul>
+                    </div>
+                    <div class="flow-step">
+                        <strong>AWS</strong>
+                        <p>Best for existing AWS infrastructure</p>
+                        <ul style="text-align: left; font-size: 0.85em; margin-top: 10px;">
+                            <li>Broadest service catalog</li>
+                            <li>Multiple AI models</li>
+                            <li>Mature ecosystem</li>
+                        </ul>
+                    </div>
+                    <div class="flow-step">
+                        <strong>GCP</strong>
+                        <p>Best for AI/ML innovation</p>
+                        <ul style="text-align: left; font-size: 0.85em; margin-top: 10px;">
+                            <li>Google's AI research</li>
+                            <li>Cost-effective</li>
+                            <li>Simple pricing</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="success-box">
+                    <h4>✅ Cloud-Agnostic Design Benefits</h4>
+                    <ul>
+                        <li><strong>Avoid vendor lock-in:</strong> Switch providers if needed</li>
+                        <li><strong>Multi-cloud strategy:</strong> Use best services from each provider</li>
+                        <li><strong>Cost optimization:</strong> Compare pricing and choose best value</li>
+                        <li><strong>Geographic flexibility:</strong> Deploy in regions not available on one provider</li>
+                        <li><strong>Disaster recovery:</strong> Cross-cloud backup and failover</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- ARCHITECTURE SECTION -->
+            <section id="architecture">
+                <h2>🏗️ Cloud-Agnostic RAG Architecture</h2>
+
+                <div class="architecture-diagram">
+                    <h3>RAG System Architecture Pattern</h3>
+                    
+                    <p>Regardless of cloud provider, a RAG system follows this common architecture:</p>
+
+                    <div class="flow-diagram" style="margin: 30px 0;">
+                        <div class="flow-step">
+                            <strong>1. Document Storage</strong>
+                            <p>S3 / Blob / GCS</p>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-step">
+                            <strong>2. Text Processing</strong>
+                            <p>Extract & Chunk</p>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-step">
+                            <strong>3. Embeddings</strong>
+                            <p>Vector Generation</p>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-step">
+                            <strong>4. Vector DB</strong>
+                            <p>Index & Search</p>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-step">
+                            <strong>5. LLM</strong>
+                            <p>Generate Answer</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="success-box">
+                    <h4>✅ Benefits of Cloud-Based RAG</h4>
+                    <ul>
+                        <li><strong>Scalability:</strong> Handle millions of documents and queries</li>
+                        <li><strong>Managed Services:</strong> No infrastructure management needed</li>
+                        <li><strong>Security:</strong> Enterprise-grade authentication and encryption</li>
+                        <li><strong>Cost-Effective:</strong> Pay only for what you use</li>
+                        <li><strong>Global Reach:</strong> Deploy in multiple regions worldwide</li>
+                        <li><strong>Integration:</strong> Connect with existing cloud services</li>
+                    </ul>
+                </div>
+
+                <h3>Cloud-Agnostic Ruby Interface</h3>
+                <p>We'll implement a common interface that works across all providers:</p>
+                <pre><code># Common RAG interface (provider-agnostic)
+class RAGSystem
+  def initialize(provider: :azure)
+    @storage = StorageAdapter.new(provider)
+    @vector_db = VectorDBAdapter.new(provider)
+    @embeddings = EmbeddingsAdapter.new(provider)
+    @llm = LLMAdapter.new(provider)
+  end
+
+  def upload_document(file_path)
+    # Works same way regardless of provider
+    @storage.upload(file_path)
+  end
+
+  def query(question, top_k: 5)
+    # 1. Generate query embedding
+    query_embedding = @embeddings.generate(question)
+    
+    # 2. Search vector database
+    relevant_chunks = @vector_db.search(query_embedding, top_k: top_k)
+    
+    # 3. Generate response with LLM
+    @llm.generate_with_context(question, relevant_chunks)
+  end
+end
+
+# Usage: Switch provider by changing one parameter
+rag = RAGSystem.new(provider: :azure)   # Azure
+rag = RAGSystem.new(provider: :aws)     # AWS
+rag = RAGSystem.new(provider: :gcp)     # GCP</code></pre>
+            </section>
+
+            <!-- SETUP SECTION -->
+            <section id="setup">
+                <h2>⚙️ Cloud Setup Steps</h2>
+
+                <h3>Prerequisites (All Providers)</h3>
+                <ul>
+                    <li>Cloud account (Azure / AWS / GCP - free tiers available)</li>
+                    <li>CLI tools installed (az / aws / gcloud)</li>
+                    <li>Ruby 3.0+ (preferably Ruby 3.3.3 with rbenv)</li>
+                    <li>Basic knowledge of REST APIs and cloud services</li>
+                </ul>
+
+                <div class="warning-box">
+                    <h4>💡 Choose Your Provider</h4>
+                    <p>Below are setup instructions for all three providers. Choose the one that matches your organization's infrastructure or preferences. The Ruby code examples later in this guide will work with any provider using the adapter pattern.</p>
+                </div>
+
+                <h3>Option 1: Azure Setup</h3>
+
+                <h4>Step 1.1: Create Azure Resources</h4>
+
+                <div class="step-box">
+                    <h4>1.1 Create Resource Group</h4>
+                    <pre><code># Azure CLI
+az group create \
+  --name rg-rag-system \
+  --location eastus</code></pre>
+                </div>
+
+                <div class="step-box">
+                    <h4>1.2 Create Storage Account & Container</h4>
+                    <pre><code># Create storage account
+az storage account create \
+  --name ragstorageaccount123 \
+  --resource-group rg-rag-system \
+  --location eastus \
+  --sku Standard_LRS \
+  --kind StorageV2
+
+# Create blob container for documents
+az storage container create \
+  --name documents \
+  --account-name ragstorageaccount123 \
+  --auth-mode login</code></pre>
+                </div>
+
+                <div class="step-box">
+                    <h4>1.3 Create Azure OpenAI Resource</h4>
+                    <pre><code># Create Azure OpenAI service
+az cognitiveservices account create \
+  --name rag-openai-service \
+  --resource-group rg-rag-system \
+  --location eastus \
+  --kind OpenAI \
+  --sku S0 \
+  --yes
+
+# Deploy embedding model
+az cognitiveservices account deployment create \
+  --name rag-openai-service \
+  --resource-group rg-rag-system \
+  --deployment-name text-embedding-ada-002 \
+  --model-name text-embedding-ada-002 \
+  --model-version "2" \
+  --model-format OpenAI
+
+# Deploy GPT-4 model
+az cognitiveservices account deployment create \
+  --name rag-openai-service \
+  --resource-group rg-rag-system \
+  --deployment-name gpt-4 \
+  --model-name gpt-4 \
+  --model-version "0613" \
+  --model-format OpenAI</code></pre>
+                </div>
+
+                <div class="step-box">
+                    <h4>1.4 Create Azure AI Search Service</h4>
+                    <pre><code># Create search service
+az search service create \
+  --name rag-search-service \
+  --resource-group rg-rag-system \
+  --location eastus \
+  --sku basic
+
+# Get admin key
+az search admin-key show \
+  --service-name rag-search-service \
+  --resource-group rg-rag-system</code></pre>
+                </div>
+
+                <div class="warning-box">
+                    <h4>⚠️ Important: Save Your Keys</h4>
+                    <p>You'll need the following credentials:</p>
+                    <ul>
+                        <li><strong>Storage Connection String:</strong> For uploading documents</li>
+                        <li><strong>OpenAI API Key & Endpoint:</strong> For embeddings and completions</li>
+                        <li><strong>Search Service Name & Admin Key:</strong> For indexing and search</li>
+                    </ul>
+                    <pre><code># Get OpenAI keys
+az cognitiveservices account keys list \
+  --name rag-openai-service \
+  --resource-group rg-rag-system
+
+# Get storage connection string
+az storage account show-connection-string \
+  --name ragstorageaccount123 \
+  --resource-group rg-rag-system</code></pre>
+                </div>
+
+                <h3>Option 2: AWS Setup</h3>
+
+                <div class="step-box">
+                    <h4>2.1 Create S3 Bucket</h4>
+                    <pre><code># AWS CLI
+# Create S3 bucket for documents
+aws s3 mb s3://rag-documents-bucket --region us-east-1
+
+# Enable versioning (optional but recommended)
+aws s3api put-bucket-versioning \
+  --bucket rag-documents-bucket \
+  --versioning-configuration Status=Enabled</code></pre>
+                </div>
+
+                <div class="step-box">
+                    <h4>2.2 Setup Amazon Bedrock</h4>
+                    <pre><code># Enable Bedrock models in your account
+# Navigate to AWS Console > Bedrock > Model Access
+# Request access to:
+# - Amazon Titan Embeddings G1 - Text
+# - Anthropic Claude 2 or Claude 3
+# - Amazon Titan Text (optional)
+
+# Or use AWS CLI to check model access
+aws bedrock list-foundation-models --region us-east-1</code></pre>
+                </div>
+
+                <div class="step-box">
+                    <h4>2.3 Setup Amazon OpenSearch</h4>
+                    <pre><code># Create OpenSearch domain for vector search
+aws opensearch create-domain \
+  --domain-name rag-search-domain \
+  --engine-version OpenSearch_2.11 \
+  --cluster-config InstanceType=t3.small.search,InstanceCount=1 \
+  --ebs-options EBSEnabled=true,VolumeType=gp3,VolumeSize=20 \
+  --access-policies '{
+    "Version": "2012-10-17",
+    "Statement": [{
+      "Effect": "Allow",
+      "Principal": {"AWS": "*"},
+      "Action": "es:*",
+      "Resource": "arn:aws:es:us-east-1:*:domain/rag-search-domain/*"
+    }]
+  }' \
+  --region us-east-1
+
+# Wait for domain creation (takes 10-15 minutes)
+aws opensearch describe-domain \
+  --domain-name rag-search-domain \
+  --query 'DomainStatus.Processing' \
+  --region us-east-1</code></pre>
+                </div>
+
+                <div class="info-box">
+                    <h4>📦 AWS Ruby Gems Required</h4>
+                    <pre><code># Add to Gemfile
+gem 'aws-sdk-s3'
+gem 'aws-sdk-bedrockruntime'
+gem 'opensearch-ruby'
+gem 'dotenv'
+
+# Install
+bundle install</code></pre>
+                </div>
+
+                <h3>Option 3: GCP Setup</h3>
+
+                <div class="step-box">
+                    <h4>3.1 Create GCS Bucket</h4>
+                    <pre><code># GCloud CLI
+# Create bucket for documents
+gsutil mb -l us-central1 gs://rag-documents-bucket/
+
+# Enable versioning (optional)
+gsutil versioning set on gs://rag-documents-bucket/</code></pre>
+                </div>
+
+                <div class="step-box">
+                    <h4>3.2 Enable Vertex AI APIs</h4>
+                    <pre><code># Enable required APIs
+gcloud services enable aiplatform.googleapis.com
+gcloud services enable storage.googleapis.com
+
+# Create service account for authentication
+gcloud iam service-accounts create rag-service-account \
+  --display-name="RAG System Service Account"
+
+# Grant necessary permissions
+gcloud projects add-iam-policy-binding PROJECT_ID \
+  --member="serviceAccount:rag-service-account@PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/aiplatform.user"
+
+gcloud projects add-iam-policy-binding PROJECT_ID \
+  --member="serviceAccount:rag-service-account@PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/storage.objectAdmin"
+
+# Create and download key
+gcloud iam service-accounts keys create ~/rag-key.json \
+  --iam-account=rag-service-account@PROJECT_ID.iam.gserviceaccount.com</code></pre>
+                </div>
+
+                <div class="step-box">
+                    <h4>3.3 Create Vertex AI Vector Search Index</h4>
+                    <pre><code># Create vector search index endpoint
+gcloud ai index-endpoints create \
+  --display-name=rag-index-endpoint \
+  --region=us-central1
+
+# Create matching engine index (configure after embedding generation)
+# This is typically done via API after you have embeddings ready</code></pre>
+                </div>
+
+                <div class="info-box">
+                    <h4>📦 GCP Ruby Gems Required</h4>
+                    <pre><code># Add to Gemfile
+gem 'google-cloud-storage'
+gem 'google-cloud-ai_platform-v1'
+gem 'dotenv'
+
+# Install
+bundle install
+
+# Set credentials
+export GOOGLE_APPLICATION_CREDENTIALS=~/rag-key.json</code></pre>
+                </div>
+
+                <div class="success-box">
+                    <h4>✅ Setup Complete!</h4>
+                    <p>You've now set up resources on your chosen cloud provider. The implementation code below uses a common Ruby interface that works with any provider.</p>
+                </div>
+            </section>
+
+            <!-- IMPLEMENTATION SECTION -->
+            <section id="implementation">
+                <h2>🔧 Implementation Steps (Cloud-Agnostic)</h2>
+
+                <p>The following implementation uses adapter classes to work with any cloud provider. We'll show the adapters first, then the common RAG pipeline code.</p>
+
+                <h3>Storage Adapter (All Providers)</h3>
+                <div class="step-box">
+                    <pre><code>class StorageAdapter
+  def initialize(provider)
+    @client = case provider
+    when :azure
+      require 'azure/storage/blob'
+      Azure::Storage::Blob::BlobService.create_from_connection_string(
+        ENV['AZURE_STORAGE_CONNECTION_STRING']
+      )
+    when :aws
+      require 'aws-sdk-s3'
+      Aws::S3::Client.new(
+        region: ENV['AWS_REGION'] || 'us-east-1',
+        access_key_id: ENV['AWS_ACCESS_KEY_ID'],
+        secret_access_key: ENV['AWS_SECRET_ACCESS_KEY']
+      )
+    when :gcp
+      require 'google/cloud/storage'
+      Google::Cloud::Storage.new(
+        project_id: ENV['GCP_PROJECT_ID'],
+        credentials: ENV['GOOGLE_APPLICATION_CREDENTIALS']
+      )
+    end
+    @provider = provider
+    @container = ENV['STORAGE_CONTAINER'] || 'documents'
+  end
+
+  def upload(file_path, blob_name = nil)
+    blob_name ||= File.basename(file_path)
+    content = File.read(file_path)
+    
+    case @provider
+    when :azure
+      @client.create_block_blob(@container, blob_name, content)
+    when :aws
+      @client.put_object(bucket: @container, key: blob_name, body: content)
+    when :gcp
+      bucket = @client.bucket(@container)
+      bucket.create_file(file_path, blob_name)
+    end
+    
+    puts "✅ Uploaded #{blob_name} to #{@container}"
+  end
+
+  def download(blob_name)
+    case @provider
+    when :azure
+      _blob, content = @client.get_blob(@container, blob_name)
+      content
+    when :aws
+      @client.get_object(bucket: @container, key: blob_name).body.read
+    when :gcp
+      bucket = @client.bucket(@container)
+      file = bucket.file(blob_name)
+      file.download.read
+    end
+  end
+end</code></pre>
+                </div>
+
+                <h3>Embeddings Adapter (All Providers)</h3>
+                <div class="step-box">
+                    <pre><code>class EmbeddingsAdapter
+  def initialize(provider)
+    @provider = provider
+    case provider
+    when :azure
+      require 'openai'
+      @client = OpenAI::Client.new(
+        access_token: ENV['AZURE_OPENAI_API_KEY'],
+        uri_base: ENV['AZURE_OPENAI_ENDPOINT'],
+        request_timeout: 240
+      )
+    when :aws
+      require 'aws-sdk-bedrockruntime'
+      @client = Aws::BedrockRuntime::Client.new(
+        region: ENV['AWS_REGION'] || 'us-east-1'
+      )
+    when :gcp
+      require 'google/apis/aiplatform_v1'
+      @client = Google::Apis::AiplatformV1::AiplatformService.new
+      @client.authorization = Google::Auth.get_application_default(
+        'https://www.googleapis.com/auth/cloud-platform'
+      )
+      @project = ENV['GCP_PROJECT_ID']
+      @location = ENV['GCP_LOCATION'] || 'us-central1'
+    end
+  end
+
+  def generate(text)
+    case @provider
+    when :azure
+      response = @client.embeddings(
+        parameters: {
+          model: 'text-embedding-ada-002',
+          input: text
+        }
+      )
+      response.dig('data', 0, 'embedding')
+    
+    when :aws
+      response = @client.invoke_model({
+        model_id: 'amazon.titan-embed-text-v1',
+        body: { inputText: text }.to_json,
+        content_type: 'application/json'
+      })
+      JSON.parse(response.body.read)['embedding']
+    
+    when :gcp
+      endpoint = "projects/#{@project}/locations/#{@location}/publishers/google/models/textembedding-gecko"
+      request = {
+        instances: [{ content: text }]
+      }
+      response = @client.predict_project_location_endpoint(endpoint, request)
+      response.predictions.first['embeddings']['values']
+    end
+  end
+end</code></pre>
+                </div>
+
+                <h3>LLM Adapter (All Providers)</h3>
+                <div class="step-box">
+                    <pre><code>class LLMAdapter
+  def initialize(provider)
+    @provider = provider
+    case provider
+    when :azure
+      require 'openai'
+      @client = OpenAI::Client.new(
+        access_token: ENV['AZURE_OPENAI_API_KEY'],
+        uri_base: ENV['AZURE_OPENAI_ENDPOINT'],
+        request_timeout: 240
+      )
+    when :aws
+      require 'aws-sdk-bedrockruntime'
+      @client = Aws::BedrockRuntime::Client.new(
+        region: ENV['AWS_REGION'] || 'us-east-1'
+      )
+    when :gcp
+      require 'google/apis/aiplatform_v1'
+      @client = Google::Apis::AiplatformV1::AiplatformService.new
+      @client.authorization = Google::Auth.get_application_default(
+        'https://www.googleapis.com/auth/cloud-platform'
+      )
+      @project = ENV['GCP_PROJECT_ID']
+      @location = ENV['GCP_LOCATION'] || 'us-central1'
+    end
+  end
+
+  def generate_with_context(question, relevant_chunks)
+    context = relevant_chunks.map { |c| "#{c[:document]}: #{c[:content]}" }.join("\n\n")
+    
+    system_prompt = <<~PROMPT
+      You are a helpful AI assistant. Answer based on the provided context.
+      If the answer is not in the context, say you don't have enough information.
+      Always cite which documents you used.
+    PROMPT
+    
+    user_prompt = "Context:\n#{context}\n\nQuestion: #{question}\n\nAnswer:"
+    
+    case @provider
+    when :azure
+      response = @client.chat(
+        parameters: {
+          model: 'gpt-4',
+          messages: [
+            { role: 'system', content: system_prompt },
+            { role: 'user', content: user_prompt }
+          ],
+          temperature: 0.7,
+          max_tokens: 800
+        }
+      )
+      response.dig('choices', 0, 'message', 'content')
+    
+    when :aws
+      prompt = "#{system_prompt}\n\n#{user_prompt}"
+      response = @client.invoke_model({
+        model_id: 'anthropic.claude-v2',
+        body: {
+          prompt: "\n\nHuman: #{prompt}\n\nAssistant:",
+          max_tokens_to_sample: 800,
+          temperature: 0.7
+        }.to_json,
+        content_type: 'application/json'
+      })
+      JSON.parse(response.body.read)['completion']
+    
+    when :gcp
+      endpoint = "projects/#{@project}/locations/#{@location}/publishers/google/models/gemini-pro"
+      request = {
+        instances: [{
+          messages: [
+            { author: 'system', content: system_prompt },
+            { author: 'user', content: user_prompt }
+          ]
+        }],
+        parameters: {
+          temperature: 0.7,
+          maxOutputTokens: 800
+        }
+      }
+      response = @client.predict_project_location_endpoint(endpoint, request)
+      response.predictions.first['candidates'].first['content']
+    end
+  end
+end</code></pre>
+                </div>
+
+                <h3>Overview of the RAG Pipeline</h3>
+                <ol>
+                    <li><strong>Upload documents</strong> to cloud storage (S3 / Blob / GCS)</li>
+                    <li><strong>Extract and chunk</strong> text from documents</li>
+                    <li><strong>Generate embeddings</strong> using cloud AI service</li>
+                    <li><strong>Index embeddings</strong> in vector database</li>
+                    <li><strong>Query system:</strong> User asks question</li>
+                    <li><strong>Retrieve relevant chunks</strong> using vector search</li>
+                    <li><strong>Generate response</strong> using LLM with context</li>
+                </ol>
+
+                <h3>Step 2: Upload Documents to Blob Storage</h3>
+
+                <div class="step-box">
+                    <h4>2.1 Upload via Azure Portal</h4>
+                    <ol>
+                        <li>Navigate to your storage account in Azure Portal</li>
+                        <li>Click on "Containers" → "documents"</li>
+                        <li>Click "Upload" and select your files (PDFs, TXT, DOCX, etc.)</li>
+                    </ol>
+                </div>
+
+                <div class="step-box">
+                    <h4>2.2 Upload via Ruby SDK</h4>
+                    <pre><code>require 'azure/storage/blob'
+require 'dotenv/load'
+
+# Initialize client
+connection_string = ENV['AZURE_STORAGE_CONNECTION_STRING']
+blob_service = Azure::Storage::Blob::BlobService.create_from_connection_string(connection_string)
+
+# Upload document
+container_name = 'documents'
+file_path = 'path/to/your/document.pdf'
+blob_name = 'document.pdf'
+
+content = File.open(file_path, 'rb') { |file| file.read }
+blob_service.create_block_blob(container_name, blob_name, content)
+
+puts "✅ Uploaded #{blob_name} to #{container_name}"</code></pre>
+                </div>
+
+                <h3>Step 3: Process Documents & Create Embeddings</h3>
+
+                <div class="step-box">
+                    <h4>3.1 Extract Text from Documents</h4>
+                    <pre><code>require 'azure/storage/blob'
+require 'pdf-reader'
+
+def extract_text_from_blob(container_name, blob_name)
+  # Extract text from a PDF in blob storage
+  blob_service = Azure::Storage::Blob::BlobService.create_from_connection_string(
+    ENV['AZURE_STORAGE_CONNECTION_STRING']
+  )
+  
+  # Download blob
+  blob, content = blob_service.get_blob(container_name, blob_name)
+  
+  # Extract text from PDF
+  reader = PDF::Reader.new(StringIO.new(content))
+  text = ""
+  reader.pages.each do |page|
+    text += page.text
+  end
+  
+  text
+end
+
+# Example usage
+text = extract_text_from_blob('documents', 'document.pdf')
+puts "Extracted #{text.length} characters"</code></pre>
+                </div>
+
+                <div class="step-box">
+                    <h4>3.2 Chunk Text for Optimal Retrieval</h4>
+                    <pre><code>def chunk_text(text, chunk_size: 1000, overlap: 200)
+  # Split text into overlapping chunks for better retrieval
+  # Args:
+  #   text: Full document text
+  #   chunk_size: Maximum characters per chunk
+  #   overlap: Number of characters to overlap between chunks
+  
+  chunks = []
+  start_pos = 0
+  
+  while start_pos < text.length
+    end_pos = start_pos + chunk_size
+    chunk = text[start_pos...end_pos]
+    
+    # Try to break at sentence boundary
+    if end_pos < text.length
+      last_period = chunk.rindex('.')
+      if last_period && last_period > (chunk_size * 0.7).to_i
+        end_pos = start_pos + last_period + 1
+        chunk = text[start_pos...end_pos]
+      end
+    end
+    
+    chunks << {
+      text: chunk.strip,
+      start: start_pos,
+      end: end_pos
+    }
+    
+    start_pos = end_pos - overlap
+  end
+  
+  chunks
+end
+
+# Example usage
+chunks = chunk_text(text, chunk_size: 1000, overlap: 200)
+puts "Created #{chunks.length} chunks"</code></pre>
+                </div>
+
+                <div class="step-box">
+                    <h4>3.3 Generate Embeddings with Azure OpenAI</h4>
+                    <pre><code>require 'openai'
+require 'dotenv/load'
+
+# Initialize Azure OpenAI client
+client = OpenAI::Client.new(
+  access_token: ENV['AZURE_OPENAI_API_KEY'],
+  uri_base: ENV['AZURE_OPENAI_ENDPOINT'],
+  request_timeout: 240
+)
+
+def generate_embedding(client, text)
+  # Generate embedding vector for text
+  response = client.embeddings(
+    parameters: {
+      model: 'text-embedding-ada-002',  # Deployment name
+      input: text
+    }
+  )
+  response.dig('data', 0, 'embedding')
+end
+
+# Generate embeddings for all chunks
+chunks.each_with_index do |chunk, i|
+  embedding = generate_embedding(client, chunk[:text])
+  chunk[:embedding] = embedding
+  puts "Generated embedding #{i + 1}/#{chunks.length}"
+end</code></pre>
+                </div>
+
+                <h3>Step 4: Index Documents in Azure AI Search</h3>
+
+                <div class="step-box">
+                    <h4>4.1 Create Search Index</h4>
+                    <pre><code>require 'net/http'
+require 'json'
+require 'uri'
+
+# Initialize configuration
+search_endpoint = ENV['AZURE_SEARCH_ENDPOINT']
+search_key = ENV['AZURE_SEARCH_ADMIN_KEY']
+index_name = 'documents-index'
+
+# Define index schema
+index_schema = {
+  name: index_name,
+  fields: [
+    { name: 'id', type: 'Edm.String', key: true },
+    { name: 'content', type: 'Edm.String', searchable: true },
+    { name: 'document_name', type: 'Edm.String', filterable: true },
+    { name: 'chunk_index', type: 'Edm.Int32' },
+    {
+      name: 'content_vector',
+      type: 'Collection(Edm.Single)',
+      searchable: true,
+      dimensions: 1536,  # ada-002 embedding size
+      vectorSearchProfile: 'my-vector-profile'
+    }
+  ],
+  vectorSearch: {
+    profiles: [
+      {
+        name: 'my-vector-profile',
+        algorithm: 'my-hnsw'
+      }
+    ],
+    algorithms: [
+      {
+        name: 'my-hnsw',
+        kind: 'hnsw'
+      }
+    ]
+  }
+}
+
+# Create index via REST API
+uri = URI("#{search_endpoint}/indexes/#{index_name}?api-version=2023-11-01")
+http = Net::HTTP.new(uri.host, uri.port)
+http.use_ssl = true
+
+request = Net::HTTP::Put.new(uri)
+request['Content-Type'] = 'application/json'
+request['api-key'] = search_key
+request.body = index_schema.to_json
+
+response = http.request(request)
+if response.code.to_i.between?(200, 299)
+  puts "✅ Created index: #{index_name}"
+else
+  puts "❌ Error: #{response.body}"
+end</code></pre>
+                </div>
+
+                <div class="step-box">
+                    <h4>4.2 Upload Chunks to Index</h4>
+                    <pre><code>require 'net/http'
+require 'json'
+
+# Prepare documents for indexing
+documents = chunks.each_with_index.map do |chunk, i|
+  {
+    '@search.action': 'upload',
+    id: "doc1_chunk#{i}",
+    content: chunk[:text],
+    document_name: 'document.pdf',
+    chunk_index: i,
+    content_vector: chunk[:embedding]
+  }
+end
+
+# Upload in batches
+batch_size = 100
+documents.each_slice(batch_size).with_index do |batch, batch_num|
+  uri = URI("#{search_endpoint}/indexes/#{index_name}/docs/index?api-version=2023-11-01")
+  http = Net::HTTP.new(uri.host, uri.port)
+  http.use_ssl = true
+  
+  request = Net::HTTP::Post.new(uri)
+  request['Content-Type'] = 'application/json'
+  request['api-key'] = search_key
+  request.body = { value: batch }.to_json
+  
+  response = http.request(request)
+  if response.code.to_i.between?(200, 299)
+    puts "✅ Uploaded batch #{batch_num + 1}"
+  else
+    puts "❌ Error in batch #{batch_num + 1}: #{response.body}"
+  end
+end</code></pre>
+                </div>
+            </section>
+
+            <!-- CODE EXAMPLES SECTION -->
+            <section id="examples">
+                <h2>💻 Complete RAG Implementation</h2>
+
+                <h3>Step 5: Query the RAG System</h3>
+
+                <div class="step-box">
+                    <h4>5.1 Retrieve Relevant Context</h4>
+                    <pre><code>def retrieve_relevant_chunks(query, top_k: 5)
+  # Retrieve most relevant chunks for a query using vector search
+  # Args:
+  #   query: User's question
+  #   top_k: Number of chunks to retrieve
+  
+  # Generate embedding for query
+  query_embedding = generate_embedding($openai_client, query)
+  
+  # Build vector search query
+  search_query = {
+    vectorQueries: [
+      {
+        kind: 'vector',
+        vector: query_embedding,
+        k: top_k,
+        fields: 'content_vector'
+      }
+    ],
+    select: 'content,document_name,chunk_index',
+    top: top_k
+  }
+  
+  # Execute search
+  search_endpoint = ENV['AZURE_SEARCH_ENDPOINT']
+  search_key = ENV['AZURE_SEARCH_ADMIN_KEY']
+  index_name = 'documents-index'
+  
+  uri = URI("#{search_endpoint}/indexes/#{index_name}/docs/search?api-version=2023-11-01")
+  http = Net::HTTP.new(uri.host, uri.port)
+  http.use_ssl = true
+  
+  request = Net::HTTP::Post.new(uri)
+  request['Content-Type'] = 'application/json'
+  request['api-key'] = search_key
+  request.body = search_query.to_json
+  
+  response = http.request(request)
+  results = JSON.parse(response.body, symbolize_names: true)
+  
+  # Extract relevant chunks
+  chunks = results[:value].map do |result|
+    {
+      content: result[:content],
+      document: result[:document_name],
+      score: result[:'@search.score']
+    }
+  end
+  
+  chunks
+end
+
+# Example usage
+query = 'What are the main features of the product?'
+relevant_chunks = retrieve_relevant_chunks(query, top_k: 5)
+puts "Retrieved #{relevant_chunks.length} relevant chunks"</code></pre>
+                </div>
+
+                <div class="step-box">
+                    <h4>5.2 Generate Response with Context</h4>
+                    <pre><code>def generate_rag_response(query, relevant_chunks)
+  # Generate AI response using retrieved context
+  # Args:
+  #   query: User's question
+  #   relevant_chunks: Retrieved document chunks
+  
+  # Build context from chunks
+  context = relevant_chunks.map do |chunk|
+    "Document: #{chunk[:document]}\n#{chunk[:content]}"
+  end.join("\n\n")
+  
+  # Create prompt with context
+  system_prompt = <<~PROMPT
+    You are a helpful AI assistant. Answer questions based on the provided context.
+    If the answer is not in the context, say "I don't have enough information to answer that question."
+    Always cite which document you used for your answer.
+  PROMPT
+  
+  user_prompt = <<~PROMPT
+    Context:
+    #{context}
+
+    Question: #{query}
+
+    Answer:
+  PROMPT
+  
+  # Call Azure OpenAI
+  response = $openai_client.chat(
+    parameters: {
+      model: 'gpt-4',  # Your deployment name
+      messages: [
+        { role: 'system', content: system_prompt },
+        { role: 'user', content: user_prompt }
+      ],
+      temperature: 0.7,
+      max_tokens: 800
+    }
+  )
+  
+  answer = response.dig('choices', 0, 'message', 'content')
+  
+  {
+    answer: answer,
+    sources: relevant_chunks.map { |chunk| chunk[:document] },
+    context_used: relevant_chunks.length
+  }
+end
+
+# Example usage
+result = generate_rag_response(query, relevant_chunks)
+puts "Answer: #{result[:answer]}"
+puts "Sources: #{result[:sources]}"</code></pre>
+                </div>
+
+                <div class="step-box">
+                    <h4>5.3 Complete RAG Pipeline Function</h4>
+                    <pre><code>def rag_query(question, top_k: 5)
+  # Complete RAG pipeline: retrieve + generate
+  # Args:
+  #   question: User's question
+  #   top_k: Number of chunks to retrieve
+  # Returns:
+  #   Hash with answer, sources, and metadata
+  
+  puts "🔍 Processing query: #{question}"
+  
+  # Step 1: Retrieve relevant chunks
+  puts '📚 Retrieving relevant documents...'
+  relevant_chunks = retrieve_relevant_chunks(question, top_k: top_k)
+  
+  if relevant_chunks.empty?
+    return {
+      answer: "I couldn't find relevant information to answer your question.",
+      sources: [],
+      context_used: 0
+    }
+  end
+  
+  # Step 2: Generate response with context
+  puts '🤖 Generating response...'
+  result = generate_rag_response(question, relevant_chunks)
+  
+  puts '✅ Response generated successfully'
+  result
+end
+
+# Example usage
+questions = [
+  'What are the system requirements?',
+  'How do I configure the application?',
+  'What are the pricing options?'
+]
+
+questions.each do |question|
+  puts "\n" + '=' * 60
+  result = rag_query(question)
+  puts "\nQ: #{question}"
+  puts "A: #{result[:answer]}"
+  puts "Sources: #{result[:sources].uniq.join(', ')}"
+  puts '=' * 60
+end</code></pre>
+                </div>
+
+                <h3>Step 6: Web API Implementation (Sinatra)</h3>
+
+                <div class="step-box">
+                    <h4>6.1 REST API Server</h4>
+                    <pre><code>require 'sinatra'
+require 'sinatra/cors'
+require 'json'
+require 'dotenv/load'
+
+# Enable CORS for frontend access
+set :allow_origin, '*'
+set :allow_methods, 'GET,HEAD,POST,PUT,DELETE,OPTIONS'
+set :allow_headers, 'content-type,if-modified-since'
+set :expose_headers, 'location,link'
+
+# Initialize RAG system (use functions defined above)
+# Initialize global OpenAI client
+$openai_client = OpenAI::Client.new(
+  access_token: ENV['AZURE_OPENAI_API_KEY'],
+  uri_base: ENV['AZURE_OPENAI_ENDPOINT'],
+  request_timeout: 240
+)
+
+# Query endpoint for RAG system
+post '/api/query' do
+  content_type :json
+  
+  begin
+    data = JSON.parse(request.body.read, symbolize_names: true)
+    question = data[:question]
+    top_k = data[:top_k] || 5
+    
+    halt 400, { error: 'Question is required' }.to_json unless question
+    
+    # Process query
+    result = rag_query(question, top_k: top_k)
+    
+    {
+      success: true,
+      data: result
+    }.to_json
+    
+  rescue StandardError => e
+    status 500
+    {
+      success: false,
+      error: e.message
+    }.to_json
+  end
+end
+
+# Upload new document to blob storage and index it
+post '/api/upload' do
+  content_type :json
+  
+  begin
+    file = params[:file]
+    halt 400, { error: 'No file provided' }.to_json unless file
+    
+    # Upload to blob storage
+    blob_name = file[:filename]
+    blob_service = Azure::Storage::Blob::BlobService.create_from_connection_string(
+      ENV['AZURE_STORAGE_CONNECTION_STRING']
+    )
+    
+    content = file[:tempfile].read
+    blob_service.create_block_blob('documents', blob_name, content)
+    
+    # Extract, chunk, embed, and index
+    text = extract_text_from_blob('documents', blob_name)
+    chunks = chunk_text(text)
+    
+    chunks.each do |chunk|
+      chunk[:embedding] = generate_embedding($openai_client, chunk[:text])
+    end
+    
+    # Upload to search index (simplified - add full logic here)
+    # ... indexing code ...
+    
+    {
+      success: true,
+      message: "Document #{blob_name} uploaded and indexed"
+    }.to_json
+    
+  rescue StandardError => e
+    status 500
+    {
+      success: false,
+      error: e.message
+    }.to_json
+  end
+end
+
+# Health check endpoint
+get '/api/health' do
+  content_type :json
+  { status: 'healthy' }.to_json
+end
+
+# Start server
+set :port, 5000
+set :bind, '0.0.0.0'</code></pre>
+                </div>
+
+                <h3>Step 7: Frontend Implementation (React)</h3>
+
+                <div class="step-box">
+                    <h4>7.1 React Component</h4>
+                    <pre><code>import React, { useState } from 'react';
+import axios from 'axios';
+
+function RAGChat() {
+  const [question, setQuestion] = useState('');
+  const [answer, setAnswer] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await axios.post('http://localhost:5000/api/query', {
+        question: question,
+        top_k: 5
+      });
+
+      if (response.data.success) {
+        setAnswer(response.data.data);
+      } else {
+        setError(response.data.error);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    &lt;div className="rag-chat"&gt;
+      &lt;h2&gt;Ask a Question&lt;/h2&gt;
+      
+      &lt;form onSubmit={handleSubmit}&gt;
+        &lt;textarea
+          value={question}
+          onChange={(e) =&gt; setQuestion(e.target.value)}
+          placeholder="What would you like to know?"
+          rows={4}
+          style={{ width: '100%', padding: '10px' }}
+        /&gt;
+        &lt;button type="submit" disabled={loading || !question}&gt;
+          {loading ? 'Thinking...' : 'Ask'}
+        &lt;/button&gt;
+      &lt;/form&gt;
+
+      {error && (
+        &lt;div className="error"&gt;
+          &lt;strong&gt;Error:&lt;/strong&gt; {error}
+        &lt;/div&gt;
+      )}
+
+      {answer && (
+        &lt;div className="answer"&gt;
+          &lt;h3&gt;Answer:&lt;/h3&gt;
+          &lt;p&gt;{answer.answer}&lt;/p&gt;
+          
+          &lt;h4&gt;Sources:&lt;/h4&gt;
+          &lt;ul&gt;
+            {[...new Set(answer.sources)].map((source, idx) =&gt; (
+              &lt;li key={idx}&gt;{source}&lt;/li&gt;
+            ))}
+          &lt;/ul&gt;
+          
+          &lt;p&gt;
+            &lt;small&gt;Used {answer.context_used} document chunks&lt;/small&gt;
+          &lt;/p&gt;
+        &lt;/div&gt;
+      )}
+    &lt;/div&gt;
+  );
+}
+
+export default RAGChat;</code></pre>
+                </div>
+
+                <div class="info-box">
+                    <h4>📦 Required Ruby Gems (Gemfile)</h4>
+                    <pre><code># Common gems for all providers
+gem 'pdf-reader'
+gem 'sinatra'
+gem 'sinatra-contrib'
+gem 'dotenv'
+gem 'json'
+
+# Azure-specific
+gem 'azure-storage-blob' if ENV['CLOUD_PROVIDER'] == 'azure'
+gem 'openai' if ENV['CLOUD_PROVIDER'] == 'azure'
+
+# AWS-specific  
+gem 'aws-sdk-s3' if ENV['CLOUD_PROVIDER'] == 'aws'
+gem 'aws-sdk-bedrockruntime' if ENV['CLOUD_PROVIDER'] == 'aws'
+gem 'opensearch-ruby' if ENV['CLOUD_PROVIDER'] == 'aws'
+
+# GCP-specific
+gem 'google-cloud-storage' if ENV['CLOUD_PROVIDER'] == 'gcp'
+gem 'google-cloud-ai_platform-v1' if ENV['CLOUD_PROVIDER'] == 'gcp'
+
+# Or install all providers
+# gem 'azure-storage-blob'
+# gem 'openai'
+# gem 'aws-sdk-s3'
+# gem 'aws-sdk-bedrockruntime'
+# gem 'opensearch-ruby'
+# gem 'google-cloud-storage'
+# gem 'google-cloud-ai_platform-v1'
+
+# Install
+# bundle install</code></pre>
+                </div>
+
+                <div class="info-box">
+                    <h4>🔐 Environment Variables (.env)</h4>
+                    <pre><code># Common
+CLOUD_PROVIDER=azure  # or aws or gcp
+STORAGE_CONTAINER=documents
+
+# Azure
+AZURE_STORAGE_CONNECTION_STRING=your_connection_string
+AZURE_OPENAI_API_KEY=your_api_key
+AZURE_OPENAI_ENDPOINT=https://your-service.openai.azure.com/
+AZURE_SEARCH_ENDPOINT=https://your-service.search.windows.net
+AZURE_SEARCH_ADMIN_KEY=your_admin_key
+
+# AWS
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
+AWS_S3_BUCKET=rag-documents-bucket
+AWS_OPENSEARCH_ENDPOINT=https://your-domain.us-east-1.es.amazonaws.com
+
+# GCP
+GCP_PROJECT_ID=your-project-id
+GCP_LOCATION=us-central1
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
+GCP_BUCKET=rag-documents-bucket</code></pre>
+                </div>
+            </section>
+
+            <!-- DEPLOYMENT SECTION -->
+            <section id="deployment">
+                <h2>🚀 Deployment Options</h2>
+
+                <p>Each cloud provider offers multiple deployment options for your RAG system. Choose based on your scaling requirements, budget, and operational preferences.</p>
+
+                <h3>Option 1: Azure Deployment</h3>
+
+                <h4>Azure App Service (Recommended)</h4>
+
+                <div class="step-box">
+                    <h4>Deploy Sinatra API</h4>
+                    <pre><code># Create App Service
+az webapp create \
+  --resource-group rg-rag-system \
+  --plan myAppServicePlan \
+  --name rag-api-app \
+  --runtime "RUBY:3.2"
+
+# Configure environment variables
+az webapp config appsettings set \
+  --resource-group rg-rag-system \
+  --name rag-api-app \
+  --settings \
+    AZURE_STORAGE_CONNECTION_STRING="..." \
+    AZURE_OPENAI_API_KEY="..." \
+    AZURE_OPENAI_ENDPOINT="..." \
+    AZURE_SEARCH_ENDPOINT="..." \
+    AZURE_SEARCH_ADMIN_KEY="..."
+
+# Deploy code
+az webapp up \
+  --resource-group rg-rag-system \
+  --name rag-api-app</code></pre>
+                </div>
+
+                <h3>Option 2: Azure Functions (Serverless)</h3>
+
+                <div class="step-box">
+                    <h4>Azure Function Implementation</h4>
+                    <pre><code>import azure.functions as func
+import json
+import logging
+
+app = func.FunctionApp()
+
+@app.function_name(name="RAGQuery")
+@app.route(route="query", methods=["POST"])
+def rag_query_function(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Azure Function for RAG queries
+    """
+    logging.info('RAG query function triggered')
+    
+    try:
+        req_body = req.get_json()
+        question = req_body.get('question')
+        
+        if not question:
+            return func.HttpResponse(
+                json.dumps({'error': 'Question required'}),
+                status_code=400
+            )
+        
+        # Use RAG pipeline
+        result = rag_query(question)
+        
+        return func.HttpResponse(
+            json.dumps({
+                'success': True,
+                'data': result
+            }),
+            mimetype="application/json"
+        )
+    
+    except Exception as e:
+        logging.error(f"Error: {str(e)}")
+        return func.HttpResponse(
+            json.dumps({'error': str(e)}),
+            status_code=500
+        )</code></pre>
+                </div>
+
+                <h3>Option 2: AWS Deployment</h3>
+
+                <h4>AWS Lambda (Serverless)</h4>
+                <div class="step-box">
+                    <h4>Deploy Ruby Function</h4>
+                    <pre><code># Create Lambda function using Ruby runtime
+# Package your code with dependencies
+bundle install --path vendor/bundle
+zip -r rag-function.zip . -x "*.git*"
+
+# Create IAM role for Lambda
+aws iam create-role \
+  --role-name rag-lambda-role \
+  --assume-role-policy-document '{
+    "Version": "2012-10-17",
+    "Statement": [{
+      "Effect": "Allow",
+      "Principal": {"Service": "lambda.amazonaws.com"},
+      "Action": "sts:AssumeRole"
+    }]
+  }'
+
+# Attach policies
+aws iam attach-role-policy \
+  --role-name rag-lambda-role \
+  --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+# Create function
+aws lambda create-function \
+  --function-name rag-query-function \
+  --runtime ruby3.2 \
+  --role arn:aws:iam::ACCOUNT_ID:role/rag-lambda-role \
+  --handler lambda_function.handler \
+  --zip-file fileb://rag-function.zip \
+  --timeout 60 \
+  --memory-size 512
+
+# Create API Gateway to expose function
+aws apigatewayv2 create-api \
+  --name rag-api \
+  --protocol-type HTTP \
+  --target arn:aws:lambda:us-east-1:ACCOUNT_ID:function:rag-query-function</code></pre>
+                </div>
+
+                <h4>AWS Elastic Beanstalk (Managed)</h4>
+                <div class="step-box">
+                    <pre><code># Initialize Elastic Beanstalk
+eb init -p ruby-3.2 rag-application --region us-east-1
+
+# Create environment
+eb create rag-env
+
+# Configure environment variables
+eb setenv CLOUD_PROVIDER=aws \
+  AWS_REGION=us-east-1 \
+  AWS_S3_BUCKET=rag-documents-bucket \
+  AWS_OPENSEARCH_ENDPOINT=https://your-domain.us-east-1.es.amazonaws.com
+
+# Deploy
+eb deploy</code></pre>
+                </div>
+
+                <h3>Option 3: GCP Deployment</h3>
+
+                <h4>Google Cloud Run (Serverless)</h4>
+                <div class="step-box">
+                    <h4>Deploy with Dockerfile</h4>
+                    <pre><code># Create Dockerfile
+cat > Dockerfile <<EOF
+FROM ruby:3.2
+WORKDIR /app
+COPY Gemfile Gemfile.lock ./
+RUN bundle install
+COPY . .
+CMD ["ruby", "app.rb", "-o", "0.0.0.0"]
+EOF
+
+# Build container
+gcloud builds submit --tag gcr.io/PROJECT_ID/rag-api
+
+# Deploy to Cloud Run
+gcloud run deploy rag-api \
+  --image gcr.io/PROJECT_ID/rag-api \
+  --platform managed \
+  --region us-central1 \
+  --allow-unauthenticated \
+  --set-env-vars CLOUD_PROVIDER=gcp,GCP_PROJECT_ID=PROJECT_ID,GCP_LOCATION=us-central1</code></pre>
+                </div>
+
+                <h4>Google App Engine (Managed)</h4>
+                <div class="step-box">
+                    <pre><code># Create app.yaml
+cat > app.yaml <<EOF
+runtime: ruby32
+env: standard
+
+env_variables:
+  CLOUD_PROVIDER: "gcp"
+  GCP_PROJECT_ID: "PROJECT_ID"
+  GCP_LOCATION: "us-central1"
+
+handlers:
+- url: /.*
+  script: auto
+EOF
+
+# Deploy to App Engine
+gcloud app deploy</code></pre>
+                </div>
+
+                <div class="success-box">
+                    <h4>✅ Deployment Comparison</h4>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Provider</th>
+                                <th>Serverless Option</th>
+                                <th>Managed Option</th>
+                                <th>Best For</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Azure</strong></td>
+                                <td>Azure Functions</td>
+                                <td>App Service</td>
+                                <td>Enterprise Windows/.NET shops</td>
+                            </tr>
+                            <tr>
+                                <td><strong>AWS</strong></td>
+                                <td>Lambda</td>
+                                <td>Elastic Beanstalk / ECS</td>
+                                <td>Mature AWS infrastructure</td>
+                            </tr>
+                            <tr>
+                                <td><strong>GCP</strong></td>
+                                <td>Cloud Run</td>
+                                <td>App Engine / GKE</td>
+                                <td>Containerized workloads</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3>Performance Optimization</h3>
+
+                <div class="success-box">
+                    <h4>✅ Best Practices</h4>
+                    <ul>
+                        <li><strong>Caching:</strong> Cache embeddings for frequently asked questions</li>
+                        <li><strong>Batch processing:</strong> Process document uploads in batches</li>
+                        <li><strong>Chunk size:</strong> Experiment with 500-1500 characters for optimal retrieval</li>
+                        <li><strong>Top-k tuning:</strong> Start with 3-5 chunks, adjust based on results</li>
+                        <li><strong>Reranking:</strong> Use semantic ranking in Azure AI Search for better results</li>
+                        <li><strong>Monitoring:</strong> Track query latency and cost per request</li>
+                    </ul>
+                </div>
+
+                <h3>Cost Optimization</h3>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Service</th>
+                            <th>Cost Factor</th>
+                            <th>Optimization</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Azure OpenAI (Embeddings)</td>
+                            <td>Per 1K tokens</td>
+                            <td>Cache embeddings, process in batches</td>
+                        </tr>
+                        <tr>
+                            <td>Azure OpenAI (GPT-4)</td>
+                            <td>Per 1K tokens</td>
+                            <td>Use GPT-3.5 for simple queries, limit max_tokens</td>
+                        </tr>
+                        <tr>
+                            <td>Azure AI Search</td>
+                            <td>Replicas & partitions</td>
+                            <td>Start with Basic tier, scale as needed</td>
+                        </tr>
+                        <tr>
+                            <td>Blob Storage</td>
+                            <td>Storage + operations</td>
+                            <td>Use cool/archive tier for old documents</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="warning-box">
+                    <h4>⚠️ Security Checklist</h4>
+                    <ul>
+                        <li>✅ Use Azure Key Vault for credentials</li>
+                        <li>✅ Enable private endpoints for services</li>
+                        <li>✅ Implement authentication (Azure AD)</li>
+                        <li>✅ Enable audit logging</li>
+                        <li>✅ Use managed identities instead of keys</li>
+                        <li>✅ Implement rate limiting</li>
+                        <li>✅ Sanitize user inputs</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- ADVANCED FEATURES -->
+            <section id="advanced">
+                <h2>🔬 Advanced Features</h2>
+
+                <h3>1. Hybrid Search (Vector + Keyword)</h3>
+                <pre><code>def hybrid_search(query, top_k=5):
+    """Combine vector search with keyword search for better results"""
+    query_embedding = generate_embedding(query)
+    
+    vector_query = VectorizedQuery(
+        vector=query_embedding,
+        k_nearest_neighbors=top_k,
+        fields="content_vector"
+    )
+    
+    # Hybrid: vector + full-text search
+    results = search_client.search(
+        search_text=query,  # Keyword search
+        vector_queries=[vector_query],  # Vector search
+        select=["content", "document_name"],
+        top=top_k
+    )
+    
+    return list(results)</code></pre>
+
+                <h3>2. Conversation Memory</h3>
+                <pre><code>class RAGConversation:
+    """RAG with conversation history"""
+    
+    def __init__(self):
+        self.history = []
+    
+    def query(self, question):
+        # Retrieve relevant chunks
+        chunks = retrieve_relevant_chunks(question)
+        
+        # Build context with history
+        context = self._build_context(chunks)
+        
+        # Generate response
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant."},
+            *self.history,  # Include conversation history
+            {"role": "user", "content": f"Context: {context}\n\nQuestion: {question}"}
+        ]
+        
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=messages
+        )
+        
+        answer = response.choices[0].message.content
+        
+        # Update history
+        self.history.append({"role": "user", "content": question})
+        self.history.append({"role": "assistant", "content": answer})
+        
+        return answer</code></pre>
+
+                <h3>3. Document Metadata Filtering</h3>
+                <pre><code>def filtered_search(query, document_type=None, date_range=None):
+    """Search with metadata filters"""
+    query_embedding = generate_embedding(query)
+    
+    vector_query = VectorizedQuery(
+        vector=query_embedding,
+        k_nearest_neighbors=10,
+        fields="content_vector"
+    )
+    
+    # Build filter expression
+    filters = []
+    if document_type:
+        filters.append(f"document_type eq '{document_type}'")
+    if date_range:
+        filters.append(f"created_date ge {date_range[0]} and created_date le {date_range[1]}")
+    
+    filter_expression = " and ".join(filters) if filters else None
+    
+    results = search_client.search(
+        search_text=None,
+        vector_queries=[vector_query],
+        filter=filter_expression,
+        select=["content", "document_name", "document_type"]
+    )
+    
+    return list(results)</code></pre>
+
+                <h3>4. Response Evaluation</h3>
+                <pre><code>def evaluate_response(question, answer, context):
+    """
+    Evaluate RAG response quality
+    Returns: relevance, hallucination check, citation accuracy
+    """
+    eval_prompt = f"""Evaluate this RAG response:
+
+Question: {question}
+Answer: {answer}
+Context: {context}
+
+Provide scores (0-10) for:
+1. Relevance: Does the answer address the question?
+2. Grounding: Is the answer based on the context?
+3. Completeness: Is the answer comprehensive?
+
+Return JSON format."""
+    
+    response = client.chat.completions.create(
+        model="gpt-4",
+        messages=[
+            {"role": "user", "content": eval_prompt}
+        ],
+        response_format={"type": "json_object"}
+    )
+    
+    evaluation = json.loads(response.choices[0].message.content)
+    return evaluation</code></pre>
+            </section>
+
+            <!-- TROUBLESHOOTING -->
+            <section id="troubleshooting">
+                <h2>🔧 Troubleshooting</h2>
+
+                <h3>Common Issues</h3>
+
+                <div class="warning-box">
+                    <h4>Issue: "No relevant documents found"</h4>
+                    <p><strong>Solutions:</strong></p>
+                    <ul>
+                        <li>Check if documents are properly indexed</li>
+                        <li>Verify embeddings were generated correctly</li>
+                        <li>Increase top_k parameter</li>
+                        <li>Try hybrid search instead of pure vector search</li>
+                        <li>Review chunk size (may be too small/large)</li>
+                    </ul>
+                </div>
+
+                <div class="warning-box">
+                    <h4>Issue: "Hallucination in responses"</h4>
+                    <p><strong>Solutions:</strong></p>
+                    <ul>
+                        <li>Strengthen system prompt to stay grounded in context</li>
+                        <li>Lower temperature parameter (0.3-0.5)</li>
+                        <li>Implement response evaluation</li>
+                        <li>Increase number of retrieved chunks</li>
+                        <li>Add citation requirements to prompt</li>
+                    </ul>
+                </div>
+
+                <div class="warning-box">
+                    <h4>Issue: "Slow query responses"</h4>
+                    <p><strong>Solutions:</strong></p>
+                    <ul>
+                        <li>Cache query embeddings</li>
+                        <li>Reduce top_k parameter</li>
+                        <li>Use GPT-3.5-turbo instead of GPT-4 for simple queries</li>
+                        <li>Implement async processing</li>
+                        <li>Scale up Azure AI Search tier</li>
+                    </ul>
+                </div>
+
+                <h3>Monitoring & Logging</h3>
+                <pre><code>import logging
+from datetime import datetime
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('rag_system.log'),
+        logging.StreamHandler()
+    ]
+)
+
+logger = logging.getLogger(__name__)
+
+def rag_query_with_logging(question):
+    """RAG query with comprehensive logging"""
+    start_time = datetime.now()
+    
+    logger.info(f"Query started: {question}")
+    
+    try:
+        # Retrieve
+        logger.info("Retrieving relevant chunks...")
+        chunks = retrieve_relevant_chunks(question)
+        logger.info(f"Retrieved {len(chunks)} chunks")
+        
+        # Generate
+        logger.info("Generating response...")
+        result = generate_rag_response(question, chunks)
+        
+        elapsed = (datetime.now() - start_time).total_seconds()
+        logger.info(f"Query completed in {elapsed:.2f}s")
+        
+        return result
+    
+    except Exception as e:
+        logger.error(f"Query failed: {str(e)}", exc_info=True)
+        raise</code></pre>
+            </section>
+
+            <!-- RESOURCES -->
+            <section id="resources">
+                <h2>📚 Additional Resources</h2>
+
+                <h3>Microsoft Documentation</h3>
+                <ul>
+                    <li><a href="https://learn.microsoft.com/en-us/azure/ai-services/openai/" target="_blank">Azure OpenAI Service Documentation</a></li>
+                    <li><a href="https://learn.microsoft.com/en-us/azure/search/" target="_blank">Azure AI Search Documentation</a></li>
+                    <li><a href="https://learn.microsoft.com/en-us/azure/storage/blobs/" target="_blank">Azure Blob Storage Documentation</a></li>
+                </ul>
+
+                <h3>Sample Code & Tutorials</h3>
+                <ul>
+                    <li><a href="https://github.com/Azure-Samples/azure-search-openai-demo" target="_blank">Azure Search + OpenAI Demo (GitHub)</a></li>
+                    <li><a href="https://github.com/microsoft/sample-app-aoai-chatGPT" target="_blank">ChatGPT + Enterprise Data (GitHub)</a></li>
+                </ul>
+
+                <h3>Best Practices</h3>
+                <ul>
+                    <li><a href="https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-solution-design-and-evaluation-guide" target="_blank">RAG Solution Design Guide</a></li>
+                    <li><a href="https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/advanced-prompt-engineering" target="_blank">Prompt Engineering for RAG</a></li>
+                </ul>
+
+                <div class="success-box">
+                    <h4>🎉 Next Steps</h4>
+                    <ol>
+                        <li>Set up your Azure resources using the commands above</li>
+                        <li>Upload your first documents to Blob Storage</li>
+                        <li>Run the document processing pipeline</li>
+                        <li>Test queries through the API</li>
+                        <li>Build a frontend interface</li>
+                        <li>Monitor performance and costs</li>
+                        <li>Iterate and optimize based on user feedback</li>
+                    </ol>
+                </div>
+
+                <div class="info-box">
+                    <h4>💡 Pro Tips</h4>
+                    <ul>
+                        <li>Start small with 10-20 documents to test your pipeline</li>
+                        <li>Use Azure OpenAI Playground to test prompts before coding</li>
+                        <li>Implement comprehensive logging from day one</li>
+                        <li>Track metrics: latency, cost per query, user satisfaction</li>
+                        <li>Regularly review and update your knowledge base</li>
+                        <li>Consider implementing feedback loops for continuous improvement</li>
+                    </ul>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>&copy; 2025 Cloud-Agnostic RAG Implementation Guide | Ruby Implementations for Azure, AWS & GCP</p>
+            <p>This guide is for educational purposes. Always follow your cloud provider's best practices and security guidelines.</p>
+            <p style="margin-top: 10px; font-size: 0.9em;">Built with ❤️ for developers seeking cloud flexibility and vendor independence.</p>
+        </footer>
+    </div>
+</body>
+</html>
+

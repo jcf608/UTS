@@ -1,0 +1,26 @@
+# frozen_string_literal: true
+
+source 'https://rubygems.org'
+
+ruby '>= 3.0.0'
+
+# Environment variables
+gem 'dotenv', '~> 2.8'
+
+# JSON parsing (usually included in Ruby)
+gem 'json', '~> 2.6'
+
+# Future: Add cloud provider SDKs as needed
+# gem 'azure-storage-blob'     # For direct Azure API calls
+# gem 'aws-sdk-core'            # For direct AWS API calls
+# gem 'google-cloud-storage'    # For direct GCP API calls
+
+group :development do
+  # Code quality
+  gem 'rubocop', '~> 1.57', require: false
+  gem 'rubocop-performance', require: false
+
+  # Testing (for future test suite)
+  gem 'rspec', '~> 3.12'
+  gem 'simplecov', require: false
+end

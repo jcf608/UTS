@@ -1,0 +1,716 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Interactive CLI frontend for RAG infrastructure deployment
+# Guides users through provider selection, authentication, and deployment
+
+require 'io/console'
+require 'fileutils'
+
+class RagDeployCLI
+  PROVIDERS = {
+    1 => { name: 'Azure', key: :azure, script: 'azure/azure_rag_infrastructure.rb', available: true },
+    2 => { name: 'AWS', key: :aws, script: 'aws/aws_rag_infrastructure.rb', available: false },
+    3 => { name: 'GCP', key: :gcp, script: 'gcp/gcp_rag_infrastructure.rb', available: false }
+  }.freeze
+
+  COMMANDS = {
+    1 => { name: 'Deploy Infrastructure', key: :deploy },
+    2 => { name: 'Check Status', key: :status },
+    3 => { name: 'Selective Delete', key: :selective_delete },
+    4 => { name: 'Destroy All Infrastructure', key: :destroy },
+    5 => { name: 'Exit', key: :exit }
+  }.freeze
+
+  def initialize
+    @provider = nil
+    @command = nil
+    @script_dir = File.dirname(__FILE__)
+  end
+
+  def run
+    display_banner
+    select_provider_once
+    main_loop
+  end
+
+  private
+
+  def display_banner
+    clear_screen
+    puts
+    puts '╔' + '═' * 78 + '╗'
+    puts '║' + center_text('RAG INFRASTRUCTURE DEPLOYMENT CLI', 78) + '║'
+    puts '║' + center_text('Interactive Setup for Azure, AWS & GCP', 78) + '║'
+    puts '╚' + '═' * 78 + '╝'
+    puts
+    puts '  Welcome! This tool will help you deploy your RAG system infrastructure.'
+    puts '  We\'ll guide you through provider selection, authentication, and deployment.'
+    puts
+    press_enter_to_continue
+  end
+
+  def select_provider_once
+    # Select provider once at the start
+    select_provider
+  end
+
+  def main_loop
+    # Main loop - keeps running until user chooses Exit
+    loop do
+      select_command
+
+      # Exit if user chose exit
+      break if @command[:key] == :exit
+
+      # Handle the selected command
+      if @command[:key] == :selective_delete
+        authenticate_provider
+        selective_delete_resources
+      else
+        authenticate_provider
+        execute_deployment_and_return
+      end
+    end
+
+    # User chose exit
+    puts
+    puts '  👋 Thank you for using RAG Deploy CLI!'
+    puts
+  end
+
+  def execute_deployment_and_return
+    clear_screen
+    print_section_header("EXECUTING: #{@command[:name]}")
+    puts
+
+    script_path = File.join(@script_dir, @provider[:script])
+
+    unless File.exist?(script_path)
+      puts "  ❌ Error: Script not found at #{script_path}"
+      puts '     This provider may not be fully implemented yet.'
+      sleep 3
+      return
+    end
+
+    puts "  📦 Provider: #{@provider[:name]}"
+    puts "  🎯 Action: #{@command[:name]}"
+    puts "  📄 Script: #{@provider[:script]}"
+    puts
+    puts '  ═' * 40
+    puts
+
+    # Set environment variables for the deployment script
+    ENV['CLOUD_PROVIDER'] = @provider[:key].to_s
+    ENV['AZURE_SUBSCRIPTION_ID'] = @azure_subscription_id if @azure_subscription_id
+    ENV['AZURE_TENANT_ID'] = @azure_tenant_id if @azure_tenant_id
+
+    # Execute the deployment and capture result
+    system("ruby #{script_path} #{@command[:key]}")
+
+    puts
+    puts '  ═' * 40
+    puts
+    press_enter_to_continue
+  end
+
+  def select_provider
+    loop do
+      clear_screen
+      print_section_header('SELECT CLOUD PROVIDER')
+      puts
+
+      PROVIDERS.each do |num, provider|
+        status = provider[:available] ? '✅' : '🚧 Coming Soon'
+        puts "  #{num}. #{provider[:name].ljust(15)} #{status}"
+      end
+
+      puts
+      print '  Choose provider (1-3): '
+      choice = $stdin.gets.chomp.to_i
+
+      provider = PROVIDERS[choice]
+
+      if provider.nil?
+        puts '  ❌ Invalid choice. Please select 1, 2, or 3.'
+        sleep 2
+        next
+      end
+
+      unless provider[:available]
+        puts "  ⚠️  #{provider[:name]} support is coming soon!"
+        puts '     Currently only Azure is available.'
+        sleep 3
+        next
+      end
+
+      @provider = provider
+      puts "  ✅ Selected: #{@provider[:name]}"
+      sleep 1
+      break
+    end
+  end
+
+  def select_command
+    loop do
+      clear_screen
+      print_section_header("WHAT WOULD YOU LIKE TO DO? (#{@provider[:name]})")
+      puts
+
+      COMMANDS.each do |num, cmd|
+        icon = case cmd[:key]
+               when :deploy then '🚀'
+               when :status then '📊'
+               when :selective_delete then '🎯'
+               when :destroy then '🗑️'
+               when :exit then '👋'
+               end
+        puts "  #{num}. #{icon} #{cmd[:name]}"
+      end
+
+      puts
+      print '  Choose action (1-5): '
+      choice = $stdin.gets.chomp.to_i
+
+      command = COMMANDS[choice]
+
+      if command.nil?
+        puts '  ❌ Invalid choice. Please select 1-5.'
+        sleep 2
+        next
+      end
+
+      if command[:key] == :exit
+        puts
+        puts '  👋 Goodbye!'
+        puts
+        exit 0
+      end
+
+      @command = command
+      puts "  ✅ Selected: #{@command[:name]}"
+      sleep 1
+      break
+    end
+  end
+
+  def authenticate_provider
+    clear_screen
+    print_section_header("AUTHENTICATION (#{@provider[:name]})")
+    puts
+
+    case @provider[:key]
+    when :azure
+      authenticate_azure
+    when :aws
+      authenticate_aws
+    when :gcp
+      authenticate_gcp
+    end
+  end
+
+  def authenticate_azure
+    puts '  We need your Azure credentials to proceed.'
+    puts
+
+    # Check if already logged in
+    check_result = `az account show 2>&1`
+    if $?.success?
+      account_info = extract_azure_info(check_result)
+      puts '  ℹ️  You are already logged in to Azure:'
+      puts "     Subscription: #{account_info[:subscription_name]}"
+      puts "     Account: #{account_info[:user_name]}"
+      puts
+      print '  Use this account? (Y/n): '
+      response = $stdin.gets.chomp.downcase
+
+      if response.empty? || response == 'y'
+        @azure_subscription_id = account_info[:subscription_id]
+        @azure_tenant_id = account_info[:tenant_id]
+        puts '  ✅ Using existing Azure session'
+        sleep 1
+        return
+      end
+    end
+
+    # Need to login
+    puts '  📋 Please provide your Azure credentials:'
+    puts
+
+    # Get Tenant ID
+    print '  Enter Azure Tenant ID: '
+    tenant_id = $stdin.gets.chomp
+
+    if tenant_id.empty?
+      puts '  ❌ Tenant ID is required'
+      sleep 2
+      authenticate_azure
+      return
+    end
+
+    # Perform Azure CLI login
+    puts
+    puts '  🔐 Opening Azure login in your browser...'
+    puts '     Please complete the authentication flow.'
+    puts
+
+    login_result = system("az login --tenant #{tenant_id}")
+
+    unless login_result
+      puts
+      puts '  ❌ Azure login failed. Please try again.'
+      sleep 3
+      authenticate_azure
+      return
+    end
+
+    # Get subscription info
+    account_result = `az account show --output json 2>&1`
+    if $?.success?
+      require 'json'
+      account_data = JSON.parse(account_result)
+      @azure_subscription_id = account_data['id']
+      @azure_tenant_id = account_data['tenantId']
+
+      puts
+      puts '  ✅ Successfully authenticated with Azure!'
+      puts "     Subscription: #{account_data['name']}"
+      puts "     ID: #{@azure_subscription_id}"
+      sleep 2
+    else
+      puts '  ❌ Failed to retrieve account information'
+      sleep 2
+      authenticate_azure
+    end
+  end
+
+  def authenticate_aws
+    puts '  We need your AWS credentials to proceed.'
+    puts
+
+    # Check if AWS CLI is configured
+    check_result = `aws sts get-caller-identity 2>&1`
+    if $?.success?
+      puts '  ℹ️  AWS credentials found!'
+      puts
+      print '  Use existing credentials? (Y/n): '
+      response = $stdin.gets.chomp.downcase
+
+      if response.empty? || response == 'y'
+        puts '  ✅ Using existing AWS credentials'
+        sleep 1
+        return
+      end
+    end
+
+    # Configure AWS
+    puts '  📋 Please provide your AWS credentials:'
+    puts
+
+    print '  AWS Access Key ID: '
+    access_key = $stdin.gets.chomp
+
+    print '  AWS Secret Access Key: '
+    secret_key = get_password
+
+    print '  Default Region (us-east-1): '
+    region = $stdin.gets.chomp
+    region = 'us-east-1' if region.empty?
+
+    puts
+    puts '  🔐 Configuring AWS CLI...'
+
+    # Set credentials
+    system("aws configure set aws_access_key_id #{access_key}")
+    system("aws configure set aws_secret_access_key #{secret_key}")
+    system("aws configure set default.region #{region}")
+
+    # Verify
+    verify_result = `aws sts get-caller-identity 2>&1`
+    if $?.success?
+      puts '  ✅ Successfully authenticated with AWS!'
+      sleep 2
+    else
+      puts '  ❌ AWS authentication failed. Please try again.'
+      sleep 2
+      authenticate_aws
+    end
+  end
+
+  def authenticate_gcp
+    puts '  We need your GCP credentials to proceed.'
+    puts
+
+    # Check if already logged in
+    check_result = `gcloud auth list --filter=status:ACTIVE --format="value(account)" 2>&1`
+    if $?.success? && !check_result.strip.empty?
+      puts '  ℹ️  You are already logged in to GCP:'
+      puts "     Account: #{check_result.strip}"
+      puts
+      print '  Use this account? (Y/n): '
+      response = $stdin.gets.chomp.downcase
+
+      if response.empty? || response == 'y'
+        puts '  ✅ Using existing GCP session'
+        sleep 1
+        return
+      end
+    end
+
+    # Need to login
+    puts '  🔐 Opening GCP login in your browser...'
+    puts '     Please complete the authentication flow.'
+    puts
+
+    login_result = system('gcloud auth login')
+
+    unless login_result
+      puts
+      puts '  ❌ GCP login failed. Please try again.'
+      sleep 3
+      authenticate_gcp
+      return
+    end
+
+    # Get project
+    print '  Enter GCP Project ID: '
+    project_id = $stdin.gets.chomp
+
+    unless project_id.empty?
+      system("gcloud config set project #{project_id}")
+    end
+
+    puts '  ✅ Successfully authenticated with GCP!'
+    sleep 2
+  end
+
+  def selective_delete_resources
+    clear_screen
+    print_section_header("SELECTIVE DELETE (#{@provider[:name]})")
+    puts
+
+    case @provider[:key]
+    when :azure
+      selective_delete_azure
+    when :aws
+      selective_delete_aws
+    when :gcp
+      selective_delete_gcp
+    end
+  end
+
+  def selective_delete_azure
+    puts '  📋 Loading your Azure resources...'
+    puts
+
+    # Get all resource groups
+    rg_result = `az group list --query "[].name" --output json 2>&1`
+    unless $?.success?
+      puts '  ❌ Failed to list resource groups'
+      puts "     #{rg_result}"
+      sleep 3
+      return
+    end
+
+    require 'json'
+    resource_groups = JSON.parse(rg_result)
+
+    if resource_groups.empty?
+      puts '  ℹ️  No resource groups found in your subscription.'
+      puts
+      press_enter_to_continue
+      return
+    end
+
+    # Build resource tree
+    resource_tree = {}
+    resource_groups.each do |rg|
+      puts "  Loading resources in #{rg}..."
+      resources_result = `az resource list --resource-group #{rg} --query "[].{name:name, type:type, id:id}" --output json 2>&1`
+
+      if $?.success?
+        resources = JSON.parse(resources_result)
+        resource_tree[rg] = resources
+      else
+        resource_tree[rg] = []
+      end
+    end
+
+    # Display resource tree and collect selections
+    clear_screen
+    print_section_header('SELECT RESOURCES TO DELETE')
+    puts
+    puts '  🌳 Resource Tree (Type the numbers to select, separated by spaces)'
+    puts
+
+    index_map = {}
+    current_index = 1
+
+    resource_tree.each do |rg, resources|
+      puts "  [#{current_index}] 📁 Resource Group: #{rg}"
+      index_map[current_index] = { type: :resource_group, name: rg, id: rg }
+      current_index += 1
+
+      if resources.empty?
+        puts '      (empty)'
+      else
+        resources.each do |resource|
+          resource_type = resource['type'].split('/')[-1]
+          puts "      [#{current_index}] 📦 #{resource['name']} (#{resource_type})"
+          index_map[current_index] = {
+            type: :resource,
+            name: resource['name'],
+            id: resource['id'],
+            resource_group: rg,
+            resource_type: resource['type']
+          }
+          current_index += 1
+        end
+      end
+      puts
+    end
+
+    puts '  ═' * 40
+    puts
+    puts '  Examples:'
+    puts '    - Type "1" to select first item'
+    puts '    - Type "1 3 5" to select multiple items'
+    puts '    - Type "all" to select everything (⚠️  dangerous!)'
+    puts '    - Press ENTER without typing to cancel'
+    puts
+    print '  Enter selection: '
+
+    selection = $stdin.gets.chomp.strip
+
+    if selection.empty?
+      puts '  ❌ Selection cancelled'
+      sleep 2
+      return
+    end
+
+    # Parse selection
+    selected_indices = if selection.downcase == 'all'
+                        index_map.keys
+                      else
+                        selection.split.map(&:to_i).select { |i| index_map.key?(i) }
+                      end
+
+    if selected_indices.empty?
+      puts '  ❌ No valid selections'
+      sleep 2
+      return
+    end
+
+    # Show what will be deleted
+    puts
+    puts '  ⚠️  The following will be DELETED:'
+    puts
+    selected_indices.each do |idx|
+      item = index_map[idx]
+      if item[:type] == :resource_group
+        puts "    🗑️  Resource Group: #{item[:name]}"
+      else
+        puts "    🗑️  Resource: #{item[:name]} (in #{item[:resource_group]})"
+      end
+    end
+
+    puts
+    puts '  ═' * 40
+    puts
+    print '  ⚠️  Type "DELETE" to confirm: '
+    confirmation = $stdin.gets.chomp
+
+    unless confirmation == 'DELETE'
+      puts '  ❌ Deletion cancelled'
+      sleep 2
+      return
+    end
+
+    # Perform deletion
+    puts
+    puts '  🗑️  Deleting selected resources...'
+    puts
+
+    # Separate resources and resource groups
+    resources_to_delete = selected_indices.map { |i| index_map[i] }
+    individual_resources = resources_to_delete.select { |r| r[:type] == :resource }
+    resource_groups_to_delete = resources_to_delete.select { |r| r[:type] == :resource_group }
+
+    # Delete individual resources first
+    individual_resources.each do |resource|
+      puts "  🗑️  Deleting #{resource[:name]}..."
+      result = system("az resource delete --ids '#{resource[:id]}' --verbose 2>&1")
+      if result
+        puts "     ✅ Deleted #{resource[:name]}"
+      else
+        puts "     ⚠️  Failed to delete #{resource[:name]}"
+      end
+    end
+
+    # Delete resource groups (this deletes everything inside)
+    resource_groups_to_delete.each do |rg|
+      puts "  🗑️  Deleting resource group #{rg[:name]}..."
+      puts "     (This will delete all resources inside)"
+      puts "     ⏳ Waiting for deletion to complete..."
+      result = system("az group delete --name '#{rg[:name]}' --yes 2>&1")
+      if result
+        puts "     ✅ Deleted #{rg[:name]} successfully"
+      else
+        puts "     ⚠️  Failed to delete #{rg[:name]}"
+      end
+    end
+
+    puts
+    puts '  ✅ Deletion complete!'
+    puts
+    press_enter_to_continue
+  end
+
+  def selective_delete_aws
+    puts '  ⚠️  AWS selective delete coming soon!'
+    sleep 2
+  end
+
+  def selective_delete_gcp
+    puts '  ⚠️  GCP selective delete coming soon!'
+    sleep 2
+  end
+
+  # Helper methods
+  def clear_screen
+    system('clear') || system('cls')
+  end
+
+  def center_text(text, width)
+    padding = (width - text.length) / 2
+    (' ' * padding) + text + (' ' * (width - text.length - padding))
+  end
+
+  def print_section_header(title)
+    puts
+    puts '  ╔' + '═' * 76 + '╗'
+    puts '  ║' + center_text(title, 76) + '║'
+    puts '  ╚' + '═' * 76 + '╝'
+  end
+
+  def press_enter_to_continue
+    print '  Press ENTER to continue...'
+    $stdin.gets
+  end
+
+  def get_password
+    password = ''
+    loop do
+      char = $stdin.getch
+      break if char == "\r" || char == "\n"
+
+      if char == "\u007F" # Backspace
+        password.chop!
+        print "\b \b" unless password.empty?
+      else
+        password << char
+        print '*'
+      end
+    end
+    puts
+    password
+  end
+
+  def extract_azure_info(json_output)
+    require 'json'
+    data = JSON.parse(json_output)
+    {
+      subscription_id: data['id'],
+      subscription_name: data['name'],
+      tenant_id: data['tenantId'],
+      user_name: data.dig('user', 'name') || 'Unknown'
+    }
+  rescue JSON::ParserError
+    {
+      subscription_id: 'unknown',
+      subscription_name: 'unknown',
+      tenant_id: 'unknown',
+      user_name: 'unknown'
+    }
+  end
+end
+
+# Check prerequisites
+def check_prerequisites
+  missing = []
+
+  # Check Ruby version
+  ruby_version = RUBY_VERSION.split('.').map(&:to_i)
+  if ruby_version[0] < 3
+    puts '❌ Ruby 3.0+ required. Current version: ' + RUBY_VERSION
+    exit 1
+  end
+
+  # Check for cloud CLIs
+  has_az = system('which az > /dev/null 2>&1')
+  has_aws = system('which aws > /dev/null 2>&1')
+  has_gcloud = system('which gcloud > /dev/null 2>&1')
+
+  if !has_az && !has_aws && !has_gcloud
+    puts '❌ No cloud CLI tools found!'
+    puts
+    puts 'Please install at least one:'
+    puts '  Azure:  https://learn.microsoft.com/en-us/cli/azure/install-azure-cli'
+    puts '  AWS:    https://aws.amazon.com/cli/'
+    puts '  GCP:    https://cloud.google.com/sdk/docs/install'
+    puts
+    exit 1
+  end
+
+  true
+end
+
+# Show help
+if ARGV.include?('--help') || ARGV.include?('-h')
+  puts
+  puts '╔═══════════════════════════════════════════════════════════════════════════════╗'
+  puts '║                    RAG Infrastructure Deployment CLI                          ║'
+  puts '╚═══════════════════════════════════════════════════════════════════════════════╝'
+  puts
+  puts 'Interactive CLI for deploying RAG infrastructure to Azure, AWS, or GCP.'
+  puts
+  puts 'Usage:'
+  puts '  ./rag_deploy              # Interactive mode (recommended)'
+  puts '  ./rag_deploy --help       # Show this help'
+  puts
+  puts 'What it does:'
+  puts '  1. Prompts you to select a cloud provider (Azure/AWS/GCP)'
+  puts '  2. Guides you through authentication'
+  puts '  3. Lets you choose: Deploy, Status Check, or Destroy'
+  puts '  4. Executes the deployment with progress indicators'
+  puts
+  puts 'Prerequisites:'
+  puts '  - Ruby 3.0+'
+  puts '  - Cloud CLI tools (az, aws, or gcloud)'
+  puts '  - Cloud account with appropriate permissions'
+  puts
+  puts 'No configuration files needed - everything is interactive!'
+  puts
+  exit 0
+end
+
+# Run the CLI
+begin
+  check_prerequisites
+  cli = RagDeployCLI.new
+  cli.run
+rescue Interrupt
+  puts
+  puts
+  puts '  ⚠️  Deployment cancelled by user'
+  puts
+  exit 130
+rescue StandardError => e
+  puts
+  puts '  ❌ Error: ' + e.message
+  puts
+  puts '  Stack trace:' if ENV['DEBUG']
+  puts e.backtrace.join("\n  ") if ENV['DEBUG']
+  puts
+  exit 1
+end
