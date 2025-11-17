@@ -81,11 +81,21 @@ module UTS
         })
       end
 
-      # Documents - with SAS URLs for download
+      # Documents - with SAS URLs for download and pagination
       get '/documents' do
         storage_service = ServiceFactory.storage_service
 
-        documents = Document.recent.map do |doc|
+        # Pagination parameters
+        page = (params[:page] || 1).to_i
+        per_page = (params[:per_page] || 20).to_i
+
+        # Get paginated documents
+        total_count = Document.count
+        documents_query = Document.order(created_at: :desc)
+                                  .limit(per_page)
+                                  .offset((page - 1) * per_page)
+
+        documents = documents_query.map do |doc|
           doc_json = doc.to_json_api
 
           # Generate temporary download URL if blob exists
@@ -99,7 +109,15 @@ module UTS
           doc_json
         end
 
-        json documents: documents
+        json({
+          documents: documents,
+          pagination: {
+            current_page: page,
+            per_page: per_page,
+            total_count: total_count,
+            total_pages: (total_count.to_f / per_page).ceil
+          }
+        })
       end
 
       post '/documents' do

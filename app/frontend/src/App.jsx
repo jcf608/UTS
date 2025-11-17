@@ -9,6 +9,9 @@ function App() {
   const [uploading, setUploading] = useState(false)
   const [uploadStatus, setUploadStatus] = useState(null)
   const [uploadProgress, setUploadProgress] = useState([])
+  const [fileQueue, setFileQueue] = useState([])
+  const [currentFileIndex, setCurrentFileIndex] = useState(-1)
+  const [fileProgress, setFileProgress] = useState({})
   
   // Fetch dashboard stats
   const { data: stats, isLoading } = useQuery({
@@ -32,31 +35,77 @@ function App() {
   }
 
   const handleFileSelect = (e) => {
-    const files = e.target.files
-    if (files && files.length > 0) {
-      handleFileUpload(files[0])
+    const files = Array.from(e.target.files || [])
+    if (files.length > 0) {
+      handleMultipleFiles(files)
     }
   }
 
   const handleDrop = (e) => {
     e.preventDefault()
-    const files = e.dataTransfer.files
-    if (files && files.length > 0) {
-      handleFileUpload(files[0])
+    const files = Array.from(e.dataTransfer.files || [])
+    if (files.length > 0) {
+      handleMultipleFiles(files)
     }
+  }
+  
+  const handleMultipleFiles = async (files) => {
+    // Initialize file queue
+    const queue = files.map((file, index) => ({
+      id: index,
+      name: file.name,
+      size: file.size,
+      status: 'pending',
+      file: file
+    }))
+    
+    setFileQueue(queue)
+    setUploadProgress([])
+    
+    // Process files sequentially
+    for (let i = 0; i < files.length; i++) {
+      setCurrentFileIndex(i)
+      
+      // Update status to processing
+      setFileQueue(prev => prev.map((f, idx) => 
+        idx === i ? { ...f, status: 'processing' } : f
+      ))
+      
+      await handleFileUpload(files[i], i)
+      
+      // Update status to complete
+      setFileQueue(prev => prev.map((f, idx) => 
+        idx === i ? { ...f, status: 'complete' } : f
+      ))
+      
+      // Small delay between uploads
+      if (i < files.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000))
+      }
+    }
+    
+    setCurrentFileIndex(-1)
+    setFileProgress({})
   }
 
   const handleDragOver = (e) => {
     e.preventDefault()
   }
 
-  const handleFileUpload = async (file) => {
+  const handleFileUpload = async (file, fileId) => {
     setUploading(true)
     setUploadStatus(null)
     setUploadProgress([])
     
     const addProgress = (step, status, message) => {
       setUploadProgress(prev => [...prev, { step, status, message, timestamp: new Date() }])
+      // Also update breadcrumb for this file
+      if (fileId !== undefined) {
+        setFileProgress(prev => ({
+          ...prev,
+          [fileId]: step
+        }))
+      }
     }
     
     try {
@@ -89,17 +138,20 @@ function App() {
     }
   }
   
-  // Fetch documents list
-  const { data: documents, refetch: refetchDocuments } = useQuery({
-    queryKey: ['documents'],
-    queryFn: () => api.getDocuments(),
+  // Pagination state
+  const [currentDocPage, setCurrentDocPage] = useState(1)
+  
+  // Fetch documents list with pagination
+  const { data: documentsData, refetch: refetchDocuments, isLoading: docsLoading } = useQuery({
+    queryKey: ['documents', currentDocPage],
+    queryFn: () => api.getDocuments(currentDocPage, 20),
     enabled: currentPage === 'documents'
   })
 
   return (
     <div className="min-h-screen bg-[#FAFAFA] flex">
-      {/* Vertical Sidebar Menu */}
-      <aside className="w-64 bg-[#2C2C2E] min-h-screen flex flex-col">
+      {/* Vertical Sidebar Menu - Fixed */}
+      <aside className="w-64 bg-[#2C2C2E] h-screen flex flex-col fixed left-0 top-0">
         <div className="p-6 border-b border-[#3A3A3C]">
           <h1 className="text-xl font-semibold text-white">UTS RAG</h1>
           <p className="text-xs text-[#8E8E93] mt-1">Document Intelligence</p>
@@ -135,13 +187,13 @@ function App() {
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <div className="flex-1">
+      {/* Main Content Area - With left margin for fixed sidebar */}
+      <div className="flex-1 ml-64">
         {/* Header */}
         <header className="bg-white shadow-sm border-b border-[#E5E5E5]">
           <div className="px-6 py-6">
             <div className="flex items-center justify-between">
-              <div>
+      <div>
                 <h2 className="text-2xl font-semibold text-[#1C1C1E]">
                   {currentPage === 'search' && 'Search Documents'}
                   {currentPage === 'upload' && 'Upload Documents'}
@@ -172,11 +224,16 @@ function App() {
             uploading={uploading}
             uploadStatus={uploadStatus}
             uploadProgress={uploadProgress}
+            fileQueue={fileQueue}
+            currentFileIndex={currentFileIndex}
+            fileProgress={fileProgress}
           />}
           
           {currentPage === 'documents' && <DocumentsPage
-            documents={documents}
-            isLoading={isLoading}
+            documentsData={documentsData}
+            isLoading={docsLoading}
+            currentPage={currentDocPage}
+            onPageChange={setCurrentDocPage}
           />}
         </main>
       </div>
@@ -246,7 +303,7 @@ function SearchPage({ query, setQuery, handleSearch, searchResults }) {
             className="w-full bg-[#5E87B0] hover:bg-[#6B9AC4] disabled:bg-[#8BA3B8] disabled:cursor-not-allowed text-white font-medium py-3 px-6 rounded-lg transition-all duration-300 ease-in-out"
           >
             Search
-          </button>
+        </button>
         </form>
         
         {/* Search Results */}
@@ -295,18 +352,91 @@ function SearchPage({ query, setQuery, handleSearch, searchResults }) {
 }
 
 // Upload Page Component
-function UploadPage({ handleDrop, handleDragOver, handleFileSelect, uploading, uploadStatus, uploadProgress }) {
+function UploadPage({ handleDrop, handleDragOver, handleFileSelect, uploading, uploadStatus, uploadProgress, fileQueue, currentFileIndex, fileProgress }) {
   const uploadSteps = [
-    { id: 1, name: 'Upload to Azure Blob' },
-    { id: 2, name: 'Save to PostgreSQL' },
-    { id: 3, name: 'Chunk Document' },
-    { id: 4, name: 'Create Embeddings' },
-    { id: 5, name: 'Index in AI Search' },
-    { id: 6, name: 'Ready to Search' }
+    { id: 1, name: 'Upload to Azure Blob', short: 'Upload' },
+    { id: 2, name: 'Save to PostgreSQL', short: 'Save' },
+    { id: 3, name: 'Chunk Document', short: 'Chunk' },
+    { id: 4, name: 'Create Embeddings', short: 'Embed' },
+    { id: 5, name: 'Index in AI Search', short: 'Index' },
+    { id: 6, name: 'Ready to Search', short: 'Done' }
   ]
   
   return (
-    <div className="max-w-4xl">
+    <div className="space-y-6">
+      {/* File Queue List */}
+      {fileQueue.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm border-l-4 border-[#6B9AC4] p-6">
+          <h3 className="text-lg font-semibold text-[#1C1C1E] mb-4">
+            Upload Queue ({fileQueue.filter(f => f.status === 'complete').length}/{fileQueue.length} complete)
+          </h3>
+          <div className="space-y-2">
+            {fileQueue.map((file, index) => (
+              <div key={file.id} className="flex items-center gap-3 p-3 bg-[#FAFAFA] rounded-lg">
+                <div className={`flex-shrink-0 ${
+                  file.status === 'complete' ? 'text-[#5A8F7B]' :
+                  file.status === 'processing' ? 'text-[#5E87B0] animate-pulse' :
+                  'text-[#8E8E93]'
+                }`}>
+                  {file.status === 'complete' && (
+                    <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                  {file.status === 'processing' && (
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                    </svg>
+                  )}
+                  {file.status === 'pending' && (
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-[#1C1C1E] truncate">{file.name}</div>
+                  <div className="text-xs text-[#636366] mt-1">
+                    {(file.size / 1024).toFixed(1)} KB
+                  </div>
+                  
+                  {/* Breadcrumb Progress */}
+                  {file.status !== 'pending' && (
+                    <div className="flex items-center gap-1 mt-2 text-xs">
+                      {uploadSteps.map((step, stepIdx) => {
+                        const currentStep = fileProgress[file.id] || 0
+                        const isComplete = file.status === 'complete' || currentStep > step.id
+                        const isCurrent = file.status === 'processing' && currentStep === step.id
+                        const isPending = currentStep < step.id
+                        
+                        return (
+                          <div key={step.id} className="flex items-center">
+                            <span className={`font-medium ${
+                              isComplete ? 'text-[#5A8F7B]' :
+                              isCurrent ? 'text-[#5E87B0]' :
+                              'text-[#E5E5E5]'
+                            }`}>
+                              {step.short}
+                            </span>
+                            {stepIdx < uploadSteps.length - 1 && (
+                              <span className={`mx-1 ${
+                                isComplete ? 'text-[#5A8F7B]' :
+                                isCurrent && currentStep >= step.id ? 'text-[#5E87B0]' :
+                                'text-[#E5E5E5]'
+                              }`}>→</span>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      
       <div className="grid grid-cols-2 gap-6">
         {/* Upload Area */}
         <div className="bg-white rounded-lg shadow-sm border-l-4 border-[#8BA3B8] p-6">
@@ -324,19 +454,23 @@ function UploadPage({ handleDrop, handleDragOver, handleFileSelect, uploading, u
               onChange={handleFileSelect}
               className="hidden"
               accept=".pdf,.txt,.doc,.docx,.md"
+              multiple
             />
             <svg className="mx-auto h-12 w-12 text-[#8E8E93]" stroke="currentColor" fill="none" viewBox="0 0 48 48" strokeWidth="1.5">
               <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             <p className="mt-3 text-sm text-[#636366]">
-              {uploading ? 'Processing...' : 'Drop files here or click to browse'}
+              {uploading ? 'Processing...' : 'Drop multiple files here or click to browse'}
+            </p>
+            <p className="mt-1 text-xs text-[#8E8E93]">
+              {uploading ? '' : 'Multiple files will be processed sequentially'}
             </p>
             <button 
               onClick={() => document.getElementById('fileInput').click()}
               disabled={uploading}
               className="mt-4 bg-[#F5F5F7] hover:bg-[#E5E5E5] disabled:bg-[#E5E5E5] disabled:cursor-not-allowed text-[#3A3A3C] font-medium py-2 px-6 rounded-lg transition-all duration-300 ease-in-out"
             >
-              {uploading ? 'Processing...' : 'Select Files'}
+              {uploading ? 'Processing...' : 'Select Multiple Files'}
             </button>
           </div>
           
@@ -404,15 +538,18 @@ function UploadPage({ handleDrop, handleDragOver, handleFileSelect, uploading, u
 }
 
 // Documents Page Component
-function DocumentsPage({ documents, isLoading }) {
+function DocumentsPage({ documentsData, isLoading, currentPage, onPageChange }) {
   if (isLoading) {
     return <div className="text-center py-12 text-[#8E8E93]">Loading documents...</div>
   }
   
-  const docs = documents?.documents || []
+  const docs = documentsData?.documents || []
+  const pagination = documentsData?.pagination || {}
+  const totalPages = pagination.total_pages || 1
   
   return (
-    <div className="bg-white rounded-lg shadow-sm border-l-4 border-[#8BA3B8]">
+    <div className="space-y-4">
+      <div className="bg-white rounded-lg shadow-sm border-l-4 border-[#8BA3B8]">
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead className="bg-[#F5F5F7] border-b border-[#E5E5E5]">
@@ -493,6 +630,70 @@ function DocumentsPage({ documents, isLoading }) {
           </tbody>
         </table>
       </div>
+      </div>
+      
+      {/* Breadcrumb Pagination */}
+      {totalPages > 1 && (
+        <div className="bg-white rounded-lg shadow-sm p-4">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-[#636366]">
+              Showing {docs.length} of {pagination.total_count} documents
+            </div>
+            
+            <div className="flex items-center gap-2">
+              {/* Previous Button */}
+              <button
+                onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 text-sm font-medium text-[#5E87B0] hover:bg-[#F5F5F7] disabled:text-[#E5E5E5] disabled:cursor-not-allowed rounded transition-colors"
+              >
+                ← Prev
+              </button>
+              
+              {/* Page Breadcrumbs */}
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                  // Show first, last, current, and neighbors
+                  const showPage = page === 1 || 
+                                   page === totalPages || 
+                                   Math.abs(page - currentPage) <= 1
+                  
+                  if (!showPage) {
+                    // Show ellipsis for gaps
+                    if (page === currentPage - 2 || page === currentPage + 2) {
+                      return <span key={page} className="text-[#8E8E93] px-1">...</span>
+                    }
+                    return null
+                  }
+                  
+                  return (
+                    <button
+                      key={page}
+                      onClick={() => onPageChange(page)}
+                      className={`min-w-[32px] px-3 py-1 text-sm font-medium rounded transition-all ${
+                        page === currentPage
+                          ? 'bg-[#5E87B0] text-white'
+                          : 'text-[#636366] hover:bg-[#F5F5F7]'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  )
+                })}
+              </div>
+              
+              {/* Next Button */}
+              <button
+                onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 text-sm font-medium text-[#5E87B0] hover:bg-[#F5F5F7] disabled:text-[#E5E5E5] disabled:cursor-not-allowed rounded transition-colors"
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

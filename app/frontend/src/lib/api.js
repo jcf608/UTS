@@ -22,9 +22,11 @@ const api = {
     return data
   },
 
-  // Documents
-  getDocuments: async () => {
-    const { data } = await client.get('/api/v1/documents')
+  // Documents with pagination
+  getDocuments: async (page = 1, perPage = 20) => {
+    const { data } = await client.get('/api/v1/documents', {
+      params: { page, per_page: perPage }
+    })
     return data
   },
 
