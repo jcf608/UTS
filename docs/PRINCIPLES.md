@@ -2224,6 +2224,16 @@ end
 
 ---
 
+## 21. Document Platform Implementation Standards
+
+- **Follow the Execution Plan:** The document-centric RAG initiative must adhere to `docs/implementation/DOCUMENT_PLATFORM_EXECUTION_PLAN.md`. Treat that file as the live project plan—update it every time a task advances or a new decision is made so future Cursor sessions inherit full context.
+- **Stack Alignment:** Backend services use Sinatra REST endpoints with ActiveRecord/Postgres and Sidekiq workers; the frontend is React/Vite using the Nordic palette and slide-out UX patterns from Section 3. Any deviation requires an ADR in `doc/architecture/`.
+- **Document Lifecycle Discipline:** Every file becomes a `Document` aggregate with SHA-256 versioning and explicit states (`pending → ingested → chunked → embedded → indexed → published/failed`). Transitions must be auditable, enforced through service objects (`libs/pipelines`), and never bypassed by controllers or jobs.
+- **Three-Cloud Capability Registry:** Azure, AWS, and GCP adapters register their supported MIME types/capabilities in the Capability Registry (no hardcoded lists). Pipelines consult the registry to select providers and must fail fast if no provider advertises the required capability.
+- **Testing & Observability:** Each new adapter, pipeline stage, or API route requires accompanying automated tests with saved output files (Section 11.6) plus structured logs containing `document_id`, `version_id`, `provider`, and latency metrics.
+
+---
+
 ## Contributing Guidelines
 
 When making changes:
