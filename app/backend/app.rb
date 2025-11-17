@@ -34,8 +34,16 @@ module UTS
     # Load models after database is configured
     Dir[File.join(settings.root, 'models', '*.rb')].sort.each { |file| require file }
 
-    # Load services
-    Dir[File.join(settings.root, 'services', '*.rb')].sort.each { |file| require file }
+    # Load services - base classes first (inheritance)
+    require File.join(settings.root, 'services', 'base_storage_service.rb')
+    require File.join(settings.root, 'services', 'base_search_service.rb')
+    require File.join(settings.root, 'services', 'service_factory.rb')
+
+    # Then load concrete implementations and other services
+    Dir[File.join(settings.root, 'services', '*.rb')]
+      .sort
+      .reject { |f| f.include?('base_') || f.include?('factory') }
+      .each { |file| require file }
 
     # CORS - More permissive for development
     before do
@@ -73,9 +81,24 @@ module UTS
         })
       end
 
-      # Documents
+      # Documents - with SAS URLs for download
       get '/documents' do
-        documents = Document.recent.map(&:to_json_api)
+        storage_service = ServiceFactory.storage_service
+
+        documents = Document.recent.map do |doc|
+          doc_json = doc.to_json_api
+
+          # Generate temporary download URL if blob exists
+          if doc.metadata && doc.metadata['blob_name']
+            doc_json[:download_url] = storage_service.generate_download_url(
+              doc.metadata['blob_name'],
+              expires_in: 3600  # 1 hour
+            )
+          end
+
+          doc_json
+        end
+
         json documents: documents
       end
 
@@ -100,32 +123,39 @@ module UTS
                               .encode('UTF-8', invalid: :replace, undef: :replace, replace: '')
                               .gsub("\u0000", '')  # Remove null bytes
 
-        # Upload to Azure Blob Storage
-        azure_result = AzureStorageService.upload_document(file[:filename], content)
-        puts "✅ Azure upload successful: #{azure_result[:blob_url]}"
+        # Upload to cloud storage (using factory - cloud-agnostic!)
+        storage_service = ServiceFactory.storage_service
+        storage_result = storage_service.upload_document(file[:filename], content)
+        puts "✅ #{storage_result[:provider].upcase} upload successful: #{storage_result[:blob_url]}"
 
-        # Save to database with Azure URL
+        # Save to database with cloud storage URL
         document = Document.create!(
           title: file[:filename],
           content: safe_content[0..10000], # Store first 10KB only
           status: :pending,
-          blob_url: azure_result[:blob_url],
+          blob_url: storage_result[:blob_url],
           metadata: {
             size: content.bytesize,
             content_type: file[:type],
             uploaded_at: Time.now.iso8601,
-            azure_blob_name: azure_result[:blob_name],
-            azure_container: azure_result[:container]
+            cloud_provider: storage_result[:provider],
+            blob_name: storage_result[:blob_name],
+            container: storage_result[:container]
           }
         )
 
         puts "✅ Database save successful: Document ID #{document.id}"
 
+        # Process document in background (create embeddings and index)
+        puts "🔄 Starting document processing..."
+        processing_result = DocumentProcessor.process_document(document)
+
         response.headers['Access-Control-Allow-Origin'] = '*'
         json({
           success: true,
           document: document.to_json_api,
-          message: 'Document uploaded to Azure and PostgreSQL successfully'
+          processing: processing_result,
+          message: 'Document uploaded, embedded, and indexed successfully'
         })
       rescue StandardError => e
         # Handle encoding in error messages
@@ -137,15 +167,27 @@ module UTS
         json error: 'Upload failed', message: safe_error_msg, error_class: e.class.name
       end
 
-      # Search
+      # Search - RAG Implementation
       post '/search' do
-        query = JSON.parse(request.body.read)
-        # TODO: Implement RAG search
+        body = JSON.parse(request.body.read)
+        query_text = body['query']
+
+        halt 400, json(error: 'Query is required') if query_text.nil? || query_text.empty?
+
+        # Perform RAG search
+        result = DocumentProcessor.search(query_text)
+
         json({
-          query: query['query'],
-          results: [],
+          success: true,
+          query: query_text,
+          answer: result[:answer],
+          sources: result[:sources],
+          chunks_found: result[:chunks_found],
           timestamp: Time.now.iso8601
         })
+      rescue StandardError => e
+        status 422
+        json error: 'Search failed', message: e.message
       end
     end
 

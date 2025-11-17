@@ -1,45 +1,93 @@
-require 'securerandom'
 require 'net/http'
 require 'uri'
 require 'base64'
 require 'openssl'
 require 'time'
-require 'cgi'
 
-class AzureStorageService
-  def self.upload_document(filename, content)
-    # Parse connection string manually
+# Azure implementation of base storage service
+class AzureStorageService < BaseStorageService
+
+  def self.provider_name
+    'azure'
+  end
+
+  def self.validate_configuration!
+    raise StandardError, 'AZURE_STORAGE_CONNECTION_STRING not set' unless ENV['AZURE_STORAGE_CONNECTION_STRING']
+  end
+
+  def self.base_url
+    account_name = parse_account_name
+    "https://#{account_name}.blob.core.windows.net"
+  end
+
+  # Implement upload_blob (called by base class template method)
+  def self.upload_blob(blob_path, content)
+    account_name, account_key = parse_credentials
+    upload_blob_rest(account_name, account_key, container_name, blob_path, content)
+  end
+
+  # Implement delete_blob
+  def self.delete_blob(blob_name)
+    account_name, account_key = parse_credentials
+    delete_blob_rest(account_name, account_key, container_name, blob_name)
+  end
+
+  # Implement create_signed_url - Generate SAS token for temporary access
+  def self.create_signed_url(blob_name, expires_in)
+    account_name, account_key = parse_credentials
+    expiry = (Time.now + expires_in).utc.iso8601
+
+    # SAS token parameters
+    permissions = 'r'  # Read only
+    start = Time.now.utc.iso8601
+
+    # Create signature
+    string_to_sign = [
+      permissions,
+      start,
+      expiry,
+      "/blob/#{account_name}/#{container_name}/#{blob_name}",
+      '',  # Identifier
+      '',  # IP
+      'https',  # Protocol
+      '2023-01-03'  # API version
+    ].join("\n")
+
+    signature = Base64.strict_encode64(
+      OpenSSL::HMAC.digest('sha256', Base64.decode64(account_key), string_to_sign)
+    )
+
+    sas_token = URI.encode_www_form({
+      sp: permissions,
+      st: start,
+      se: expiry,
+      sv: '2023-01-03',
+      sr: 'b',
+      sig: signature
+    })
+
+    "https://#{account_name}.blob.core.windows.net/#{container_name}/#{blob_name}?#{sas_token}"
+  end
+
+  private
+
+  def self.parse_credentials
     conn_string = ENV['AZURE_STORAGE_CONNECTION_STRING']
     account_name = conn_string[/AccountName=([^;]+)/, 1]
     account_key = conn_string[/AccountKey=([^;]+)/, 1]
+    [account_name, account_key]
+  end
 
-    container_name = ENV['AZURE_STORAGE_CONTAINER'] || 'documents'
-    # URL-encode filename to handle spaces and special characters
-    safe_filename = filename.gsub(/[^a-zA-Z0-9._-]/, '_')
-    blob_name = "#{Time.now.strftime('%Y/%m/%d')}/#{SecureRandom.uuid}_#{safe_filename}"
-
-    # Upload using REST API
-    upload_blob_rest(account_name, account_key, container_name, blob_name, content)
-
-    blob_url = "https://#{account_name}.blob.core.windows.net/#{container_name}/#{blob_name}"
-
-    {
-      blob_url: blob_url,
-      blob_name: blob_name,
-      container: container_name
-    }
-  rescue StandardError => e
-    raise StandardError, "Azure upload failed: #{e.message}"
+  def self.parse_account_name
+    ENV['AZURE_STORAGE_CONNECTION_STRING'][/AccountName=([^;]+)/, 1]
   end
 
   def self.upload_blob_rest(account_name, account_key, container, blob_name, content)
     url = "https://#{account_name}.blob.core.windows.net/#{container}/#{blob_name}"
     uri = URI(url)
 
-    http = Net::HTTP.new(uri.host, uri.port)
-    http.use_ssl = true
-    # Development: disable SSL verification (production should use proper certs)
-    http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+    # Use shared HTTP client from base class
+    http = https_client(uri)
 
     request = Net::HTTP::Put.new(uri.request_uri)
     request['x-ms-blob-type'] = 'BlockBlob'
@@ -75,23 +123,36 @@ class AzureStorageService
 
     response = http.request(request)
 
-    unless response.code.to_i == 201
-      raise "Upload failed: #{response.code} - #{response.body}"
-    end
+    # Use shared response validation from base class
+    validate_response(response, [201])
 
     true
+  rescue StandardError => e
+    handle_upload_error(e)
   end
 
-  def self.delete_document(blob_name)
-    blob_client = Azure::Storage::Blob::BlobService.create_from_connection_string(
-      ENV['AZURE_STORAGE_CONNECTION_STRING']
+  def self.delete_blob_rest(account_name, account_key, container, blob_name)
+    # Implement DELETE request for Azure Blob
+    url = "https://#{account_name}.blob.core.windows.net/#{container}/#{blob_name}"
+    uri = URI(url)
+
+    # Use shared HTTP client from base class
+    http = https_client(uri)
+
+    request = Net::HTTP::Delete.new(uri.request_uri)
+    request['x-ms-version'] = '2023-01-03'
+    request['x-ms-date'] = Time.now.httpdate
+
+    # Authorization signature for DELETE
+    string_to_sign = "DELETE\n\n\n\n\n\n\n\n\n\n\n\nx-ms-date:#{request['x-ms-date']}\nx-ms-version:2023-01-03\n/#{account_name}/#{container}/#{blob_name}"
+
+    signature = Base64.strict_encode64(
+      OpenSSL::HMAC.digest('sha256', Base64.decode64(account_key), string_to_sign)
     )
 
-    container_name = ENV['AZURE_STORAGE_CONTAINER'] || 'documents'
-    blob_client.delete_blob(container_name, blob_name)
+    request['Authorization'] = "SharedKey #{account_name}:#{signature}"
 
-    true
-  rescue Azure::Core::Http::HTTPError => e
-    raise StandardError, "Azure delete failed: #{e.message}"
+    response = http.request(request)
+    response.code.to_i == 202
   end
 end
