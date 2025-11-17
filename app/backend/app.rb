@@ -154,13 +154,25 @@ module UTS
 
         file = params[:file]
         content = file[:tempfile].read
+        content_type = file[:type] || ''
 
-        puts "📤 Uploading: #{file[:filename]} (#{content.bytesize} bytes)"
+        puts "📤 Uploading: #{file[:filename]} (#{content.bytesize} bytes, type: #{content_type})"
 
-        # Clean content for PostgreSQL - remove null bytes and fix encoding
-        safe_content = content.force_encoding('UTF-8')
-                              .encode('UTF-8', invalid: :replace, undef: :replace, replace: '')
-                              .gsub("\u0000", '')  # Remove null bytes
+        # Detect if file is an image
+        is_image = content_type.start_with?('image/') || 
+                   file[:filename] =~ /\.(png|jpg|jpeg|gif|webp|bmp|svg)$/i
+
+        # For text files, clean content for PostgreSQL
+        if is_image
+          # For images, store a placeholder text and metadata
+          safe_content = "[Image file: #{file[:filename]}]"
+          puts "   📷 Detected image file - will store without text processing"
+        else
+          # Clean content for PostgreSQL - remove null bytes and fix encoding
+          safe_content = content.force_encoding('UTF-8')
+                                .encode('UTF-8', invalid: :replace, undef: :replace, replace: '')
+                                .gsub("\u0000", '')  # Remove null bytes
+        end
 
         # Upload to cloud storage (using factory - cloud-agnostic!)
         storage_service = ServiceFactory.storage_service
@@ -170,24 +182,37 @@ module UTS
         # Save to database with cloud storage URL
         document = Document.create!(
           title: file[:filename],
-          content: safe_content[0..10000], # Store first 10KB only
+          content: is_image ? safe_content : safe_content[0..10000], # Store first 10KB only for text
           status: :pending,
           blob_url: storage_result[:blob_url],
           metadata: {
             size: content.bytesize,
-            content_type: file[:type],
+            content_type: content_type,
             uploaded_at: Time.now.iso8601,
             cloud_provider: storage_result[:provider],
             blob_name: storage_result[:blob_name],
-            container: storage_result[:container]
+            container: storage_result[:container],
+            is_image: is_image
           }
         )
 
         puts "✅ Database save successful: Document ID #{document.id}"
 
         # Process document in background (create embeddings and index)
-        puts "🔄 Starting document processing..."
-        processing_result = DocumentProcessor.process_document(document)
+        # Skip text processing for images
+        if is_image
+          puts "   📷 Image uploaded - skipping text processing"
+          document.update!(status: :indexed)
+          processing_result = {
+            success: true,
+            message: 'Image uploaded successfully (text processing skipped)',
+            chunks_created: 0,
+            embeddings_created: 0
+          }
+        else
+          puts "🔄 Starting document processing..."
+          processing_result = DocumentProcessor.process_document(document)
+        end
 
         response.headers['Access-Control-Allow-Origin'] = '*'
         json({

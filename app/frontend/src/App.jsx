@@ -499,7 +499,7 @@ function UploadPage({ handleDrop, handleDragOver, handleFileSelect, uploading, u
               id="fileInput"
               onChange={handleFileSelect}
               className="hidden"
-              accept=".pdf,.txt,.doc,.docx,.md"
+              accept=".pdf,.txt,.doc,.docx,.md,.png,.jpg,.jpeg,.gif,.webp,.bmp,.svg"
               multiple
             />
             <svg className="mx-auto h-12 w-12 text-[#8E8E93]" stroke="currentColor" fill="none" viewBox="0 0 48 48" strokeWidth="1.5">
@@ -509,7 +509,7 @@ function UploadPage({ handleDrop, handleDragOver, handleFileSelect, uploading, u
               {uploading ? 'Processing...' : 'Drop multiple files here or click to browse'}
             </p>
             <p className="mt-1 text-xs text-[#8E8E93]">
-              {uploading ? '' : 'Multiple files will be processed sequentially'}
+              {uploading ? '' : 'Supports PDF, Word, Text, Markdown, and Image files (PNG, JPG, GIF, etc.)'}
             </p>
             <button 
               onClick={() => document.getElementById('fileInput').click()}
